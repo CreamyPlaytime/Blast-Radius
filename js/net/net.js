@@ -487,7 +487,10 @@ function netPuppetShot(e) {
     const T = rayWorld(_po, _pd2, 160);
     if (!G.zm) G.events.push({ t: G.now, k: 'shot', id: e.id, x: _po.x + _pd2.x * T, y: _po.y + _pd2.y * T, z: _po.z + _pd2.z * T, snd: w.d.snd, supp });
     const rx = Math.cos(e.yaw), rz = -Math.sin(e.yaw);
-    tracer(_po.x + _pd2.x * .7 + rx * .06, _po.y + _pd2.y * .7 - .12, _po.z + _pd2.z * .7 + rz * .06, _po.x + _pd2.x * T, _po.y + _pd2.y * T, _po.z + _pd2.z * T, w.d.tracer);
+    const M = modelMuzzle(e, new THREE.Vector3(), _po) || new THREE.Vector3(_po.x + _pd2.x * .7 + rx * .06, _po.y + _pd2.y * .7 - .12, _po.z + _pd2.z * .7 + rz * .06);
+    const am = w.am || AMMO.std, hx = _po.x + _pd2.x * T, hy = _po.y + _pd2.y * T, hz = _po.z + _pd2.z * T;
+    if (am.glow) glowTracer(M.x, M.y, M.z, hx, hy, hz, am.glow);
+    else tracer(M.x, M.y, M.z, hx, hy, hz, am.fire ? 0xFF7A20 : w.d.tracer);
   }
   if (netHost()) {
     const hear = supp ? 9 : 32;
@@ -792,7 +795,7 @@ function netSplit(on) {
   resize();
 }
 function netFullscreen() {
-  try { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); } catch (e) {}
+  toggleFullscreen();
 }
 // a Player 2 window starts on the party screen and looks for the game to join
 if (SEAT.n > 1) {

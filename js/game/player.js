@@ -85,14 +85,16 @@ arcRing.rotation.x = -Math.PI / 2; arcRing.visible = false; scene.add(arcRing);
 
 // rounded first-person hands: a palm, curled fingers, a thumb, a cuff and a sleeve
 const _up = new THREE.Vector3(0, 1, 0);
+// first-person arms in the same low-poly style as the soldiers: few sides, flat shading
 function limb(g, c, r0, r1, from, to, seg = 10) {
   const d = new THREE.Vector3().subVectors(to, from), L = d.length();
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, L, seg), pmat(c));
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, L, seg >= 12 ? 7 : 6), fmat(c));
   m.quaternion.setFromUnitVectors(_up, d.normalize()); m.position.copy(from).add(to).multiplyScalar(.5); g.add(m); return m;
 }
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
-function knuckle(g, x, y, z, r = .0105) { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), pmat(GC.glove)); m.position.set(x, y, z); g.add(m); return m; }
+function knuckle(g, x, y, z, r = .0105) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, r > .02 ? 1 : 0), fmat(GC.glove)); m.position.set(x, y, z); g.add(m); return m; }
 function makeHand(kind, sleeve, fit) {
+  sleeve = uniformTone(sleeve);   // the uniform fabric, the same as your soldier's
   const h = new THREE.Group(), G = GC.glove;
   if (kind === 'grip') {
     // right hand round a pistol grip (grip axis = local y, raked by the caller)
@@ -214,7 +216,7 @@ function makeVm(w, sleeve) {
     // a vertical foregrip: the left hand wraps it like the right hand wraps the pistol grip (the same hand, mirrored)
     lh.position.set(0, R.fore.y, R.fore.z + .004); lh.scale.x = -1; R.lhRot = -.06; lh.add(makeHand('grip', sleeve));
   }
-  else if (R.fore) { lh.position.set(0, R.fore.y - .01, R.fore.z); R.lhRot = 0; lh.add(makeHand('fore', sleeve, foreFit(R))); }
+  else if (R.fore) { lh.position.set(0, R.fore.y - .01, R.fore.z); R.lhRot = R.fore.kind === 'afg' ? -.28 : 0; lh.add(makeHand('fore', sleeve, foreFit(R))); }   // on an angled grip the hand rakes forward
   else { lh.position.set(-.005, R.grip.y - .005, R.grip.z - .006); R.lhRot = -.22; lh.add(makeHand('cup', sleeve)); }
   lh.rotation.x = R.lhRot;
   R.lhBase = lh.position.clone();
@@ -617,6 +619,17 @@ function updateLaser(p, w) {
   const on = w.has('laser') && vm && vm.laser && p.alive && !G.hold && G.meleeT <= 0 && !G.mantle && !(w.optic === 'scope' && G.adsT > .85);
   laserBeam.visible = laserDot.visible = on;
   if (on) drawLaserFrom(vm, p, G.adsT);
+}
+// where the drawn gun's muzzle is, carried into the world: the muzzle's spot on screen, a little way out from
+// the eye. Tracers start there, so they come out of the barrel (not the scope) however the gun is held.
+function vmMuzzleWorld(R, out, dist = .6) {
+  if (!R || !R.group || !R.group.visible) return null;
+  R.group.updateMatrixWorld(true); camera.updateMatrixWorld();
+  _lq.set(0, R.muzzleY, R.muzzle).applyMatrix4(R.group.matrixWorld);
+  if (_lq.z > -.02) return null;
+  _lq.applyMatrix4(vmCamera.projectionMatrix);
+  if (!Number.isFinite(_lq.x) || Math.abs(_lq.x) > 1.2 || Math.abs(_lq.y) > 1.2) return null;
+  return out.set(_lq.x, _lq.y, .5).unproject(camera).sub(camera.position).normalize().multiplyScalar(dist).add(camera.position);
 }
 // used by the player and by the kill cam (which shows the killer's gun with its own laser)
 function drawLaserFrom(R, owner, adsT) {

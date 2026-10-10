@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Blast Radius"><meta name="theme-color" content="#0d1114"><link rel="manifest" href="manifest.webmanifest"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Blast Radius</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,10 +17,11 @@
   <header class="mtop" id="mTop" hidden>
     <div class="mbrand">Blast <b>Radius</b></div>
     <div class="crumb" id="mCrumb"></div>
-    <div class="pcard">
+    <div class="pcard" id="pcard" role="button" tabindex="-1" title="Switch player">
       <div class="emblem" id="pcEmblem">1</div>
       <div class="pcinfo"><div class="pcname" id="pcName">Player</div><div class="pclvl"><span id="pcLvl">Level 1</span><span class="xpbar"><i id="pcXp"></i></span></div></div>
     </div>
+    <button type="button" class="fsbtn" id="fsBtn" tabindex="-1" aria-label="Fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2.2"/></svg></button>
   </header>
   <main class="mbody" id="mBody" hidden>
     <div class="mleft"><h1 class="mhead" id="mHead"></h1><nav class="mlist" id="mList" aria-label="Menu"></nav><p class="mdesc" id="mDesc"></p></div>

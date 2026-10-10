@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= REPLAYS: KILL CAMS ================= */
-const REC = 26;
+const REC = 28;
 function writePose(e, d, o) {
   const m = e.model;
   if (!m) { d.fill(0, o, o + REC); return; }
@@ -20,6 +20,8 @@ function writePose(e, d, o) {
   d[o + 23] = e.isBot ? (e.sprinting ? 1 : 0) : (G.sprinting ? 1 : 0);
   d[o + 24] = e.net && !e.net.mine && e.rlProg !== undefined ? e.rlProg : w && w.reloading && !w.shellMode ? 1 - w.reloadT / w.reloadDur : -1;
   d[o + 25] = Math.hypot(e.vel.x, e.vel.z);
+  d[o + 26] = e.isZombie ? 0 : meleeProgress(e);                     // how far through a knife stab
+  d[o + 27] = m._ads || 0;                                              // how far the model's gun is raised
 }
 function readPose(e, d, o, show) {
   const m = e.model; if (!m) return;
@@ -28,6 +30,7 @@ function readPose(e, d, o, show) {
   m.hips.position.y = d[o + 6]; m.spine.rotation.x = d[o + 7]; m.head.rotation.x = d[o + 8];
   m.aim.rotation.set(d[o + 9], d[o + 10], d[o + 11]);
   m.legs[0].thigh.rotation.x = d[o + 12]; m.legs[0].knee.rotation.x = d[o + 13]; m.legs[1].thigh.rotation.x = d[o + 14]; m.legs[1].knee.rotation.x = d[o + 15];
+  if (m.hold) poseHands(m, d[o + 27], d[o + 26]);                     // gun raised or lowered, knife out
 }
 function snapPoses() {
   const n = G.ents.length, d = new Float32Array(n * REC), ix = new Map();
@@ -99,14 +102,18 @@ function kcEvent(ev) {
       const sy = Math.atan2(-ex, -ez), sp = Math.atan2(ey, Math.hypot(ex, ez));
       K.aimY = clamp(wrap(sy - (camera.rotation.y - K.aimY)), -.12, .12); K.aimP = clamp(sp - (camera.rotation.x - K.aimP), -.12, .12);
       const f = dirFrom(camera.rotation.y, camera.rotation.x, new THREE.Vector3());
-      tracer(camera.position.x + f.x * .5 + Math.cos(camera.rotation.y) * .15, camera.position.y + f.y * .5 - .12, camera.position.z + f.z * .5 - Math.sin(camera.rotation.y) * .15, ev.x, ev.y, ev.z);
+      const mo = vmMuzzleWorld(K.vm, new THREE.Vector3());
+      if (mo) tracer(mo.x, mo.y, mo.z, ev.x, ev.y, ev.z);
+      else tracer(camera.position.x + f.x * .5 + Math.cos(camera.rotation.y) * .15, camera.position.y + f.y * .5 - .12, camera.position.z + f.z * .5 - Math.sin(camera.rotation.y) * .15, ev.x, ev.y, ev.z);
       playGun(ev.snd, 1, 0, ev.supp, 0);
     } else {
       const sh = G.ents.find(e => e.id === ev.id), F = G.rec[K.fi], o = F.ix.get(ev.id);
       if (!sh || o === undefined) return;
       const ex = F.d[o + 16], ey = F.d[o + 17] + F.d[o + 19], ez = F.d[o + 18];
       const f = dirFrom(F.d[o + 21], F.d[o + 20], new THREE.Vector3());
-      tracer(ex + f.x * .7, ey + f.y * .7 - .12, ez + f.z * .7, ev.x, ev.y, ev.z);
+      const mo = sh.model && sh.model.group.visible ? sh.model.flash.getWorldPosition(new THREE.Vector3()) : null;
+      if (mo && Number.isFinite(mo.x) && Math.hypot(mo.x - ex, mo.y - ey, mo.z - ez) < 2.2) tracer(mo.x, mo.y, mo.z, ev.x, ev.y, ev.z);
+      else tracer(ex + f.x * .7, ey + f.y * .7 - .12, ez + f.z * .7, ev.x, ev.y, ev.z);
       if (sh.model && !ev.supp) { sh.model.flash.visible = true; sh.model.flash.rotation.z = Math.random() * 3; K.mflash.set(sh.model, .05); }
       const { d, pan } = camSound(ex, ez);
       playGun(ev.snd, .9 * clamp(1 - d / 90, .05, 1), pan, ev.supp, d);
@@ -147,7 +154,13 @@ function updateKillcam(dt) {
   camera.position.set(d[o + 16], d[o + 17] + d[o + 19], d[o + 18]);
   camera.rotation.set(d[o + 20] + K.aimP, d[o + 21] + K.aimY, 0);
   while (K.ei < G.events.length && G.events[K.ei].t <= K.t) { kcEvent(G.events[K.ei]); K.ei++; }
-  const a = d[o + 22], R = K.vm, wd = WEAPONS[K.kill.w.key], spr = d[o + 23], rl = d[o + 24], spd = d[o + 25];
+  const a = d[o + 22], R = K.vm, wd = WEAPONS[K.kill.w.key], spr = d[o + 23], rl = d[o + 24], spd = d[o + 25], mk = d[o + 26];
+  // a knife kill: the killer's knife comes up from the lower right and stabs forward, the gun dips out of the way
+  if (mk > 0) {
+    const s = Math.sin(mk * Math.PI), e = Math.sin(clamp(mk / .45, 0, 1) * Math.PI / 2);
+    knife.visible = true; knife.position.set(.2 - e * .13 + (1 - s) * .02, -.26 + s * .15, -.2 - s * .25); knife.rotation.set(-.1 + s * .12, .32 - e * .26, -.65 + s * .45);
+  } else knife.visible = false;
+  K.knifeDip = mk > 0 ? Math.sin(mk * Math.PI) : 0;
   K.kick = Math.max(0, K.kick - dt * rate * 14);
   K.bob += spd * dt * rate * 1.9;
   if (K.flashT > 0) { K.flashT -= dt * rate; if (K.flashT <= 0) R.flash.visible = false; }
@@ -155,7 +168,7 @@ function updateKillcam(dt) {
   const bobY = Math.sin(K.bob * 2) * .035 * Math.min(1, spd / 5) * (1 - a * .85), sway = Math.sin(K.bob) * .012 * Math.min(1, spd / 5) * (1 - a);
   const renv = rl >= 0 ? Math.sin(clamp(rl / .92, 0, 1) * Math.PI) : 0;
   if (R.mag) R.mag.visible = !(rl >= .25 && rl < .5);
-  R.group.position.set(lerp(hip.x, ads.x, a) + sway - spr * .06 - renv * .04, lerp(hip.y, ads.y, a) + bobY * .5 - spr * .06 - renv * .07, lerp(hip.z, ads.z, a) + K.kick * .04);
+  R.group.position.set(lerp(hip.x, ads.x, a) + sway - spr * .06 - renv * .04 + K.knifeDip * .1, lerp(hip.y, ads.y, a) + bobY * .5 - spr * .06 - renv * .07 - K.knifeDip * .2, lerp(hip.z, ads.z, a) + K.kick * .04);
   R.group.rotation.set(K.kick * .05 - spr * .25 + renv * .2, spr * .7, spr * .25 + renv * .5); aimSleeve(R);
   // look through the optic the same way the player does: the ACOG's inner glass hides once the gun is up
   for (const m of R.inner) m.visible = a < .55;
@@ -187,7 +200,7 @@ function clearKillcam() {
   }
   for (const p of G.proj) p.mesh.visible = true;
   for (const k in K.pool) for (const m of K.pool[k]) scene.remove(m);
-  kcVmRoot.remove(K.vm.group); vmRoot.visible = true;
+  kcVmRoot.remove(K.vm.group); vmRoot.visible = true; knife.visible = false;
   laserBeam.visible = laserDot.visible = false;
   $('#killcam').hidden = true; $('#hud').classList.remove('kc'); $('#scope').classList.remove('on');
   camera.fov = settings.fov; camera.updateProjectionMatrix(); vmCamera.fov = 60; vmCamera.updateProjectionMatrix();

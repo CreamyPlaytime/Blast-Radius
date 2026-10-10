@@ -2,7 +2,7 @@
 'use strict';
 
 /* ================= GUN MATERIALS ================= */
-const GC = { body: 0x2F3337, dark: 0x1C1F22, metal: 0x5D646B, poly: 0x4A4F3A, wood: 0x7A4E30, tan: 0x9C8A66, glove: 0x4A4237, sleeve: 0x4F95DB, skin: 0xC99A72, brass: 0xC9A44A, od: 0x55593F, black: 0x141618 };
+const GC = { body: 0x2F3337, dark: 0x1C1F22, metal: 0x5D646B, poly: 0x4A4F3A, wood: 0x7A4E30, tan: 0x9C8A66, glove: 0x35332E, sleeve: 0x4F95DB, skin: 0xC99A72, brass: 0xC9A44A, od: 0x55593F, black: 0x141618 };
 // a soft studio environment so metal parts pick up highlights
 // a small photo studio for reflections: grey walls, a bright ceiling, dark floor, and tall softbox strips on the
 // sides, so steel shows crisp highlights and dark reflections like real metal (flat gradients made it look painted)
@@ -180,7 +180,7 @@ function dotSights(g, rearZ, frontZ, base, S, big = false) {
   // rear: two posts kept within the slide's width, with a notch between them for the front post
   // big-frame sights: a wider notch and a taller, thicker front blade with a larger dot, so the front post
   // reads clearly between the rear posts instead of hiding against the slide
-  const gap = big ? .0115 : .0095, pw = big ? .008 : .007, fw = big ? .0065 : .0045, fd = big ? .0026 : .0019;
+  const gap = big ? .0072 : .0095, pw = big ? .0062 : .007, fw = big ? .0042 : .0045, fd = big ? .0019 : .0019;
   for (const x of [-gap, gap]) { Bx(g, GC.black, pw, base, S, rearZ - .008, rearZ + .008, x); peg(x, S - .006, rearZ + .008, big ? .0017 : .0019, dotMat); }
   Bx(g, GC.black, gap * 2 + pw, base, base + .0015, rearZ - .008, rearZ + .008);   // thin base: the notch floor sits below the front dot
   // front: a blade with a green tritium dot near its top
@@ -578,9 +578,12 @@ const BUILD = {
     Bx(g, GC.tan, .05, -.035, .02, -.2, .1);
     Cz(g, GC.metal, .021, -.18, .1, .022, 14);
     const top = rail(g, .043, .1, -.18, .028);
-    Bx(g, GC.tan, .056, -.035, .02, -.52, -.2);
+    Bx(g, GC.tan, .056, -.035, .042, -.52, -.2);                                  // handguard, tall enough to wrap round the barrel
     for (let k = 0; k < 4; k++) Bx(g, GC.black, .058, -.02, .005, -.48 + k * .07, -.46 + k * .07);
-    Cz(R.bar, GC.dark, .012, -.8, -.52, .022); R.mdev = Cz(R.bar, GC.metal, .019, -.86, -.8, .022, 6); R.barEnd = -.8;
+    Cz(g, GC.dark, .0175, -.53, -.51, .022, 14);                                   // barrel nut where the barrel leaves the handguard
+    Cz(R.bar, GC.dark, .012, -.8, -.45, .022);                                     // barrel, running back into the handguard
+    for (let k = 0; k < 6; k++) { const a = k * TAU / 6, f = Bx(R.bar, GC.black, .0035, -.0012, .0012, -.77, -.56); f.position.set(Math.cos(a) * .0116, .022 + Math.sin(a) * .0116, -.665); f.rotation.z = a + Math.PI / 2; }   // flutes
+    R.mdev = Cz(R.bar, GC.metal, .019, -.86, -.8, .022, 6); R.barEnd = -.8;
     magazine(g, R, -.035, -.07, [[GC.dark, .04, .06, .075, 0]]);
     Grip(g, GC.dark, .034, .09, .044, -.035, .09, -.3);
     trig(g, -.035, .03);
@@ -663,9 +666,10 @@ const BUILD = {
 // handguns: frame, a slide that runs back over a fixed barrel, three-dot sights, guard and trigger
 function pistolKit(g, R, o, P) {
   // the big frame carries a raised rib down the slide, so its sights stand on the rib and the sight line sits higher
-  const z0 = P.z0, top = P.S - .008, sh = P.big ? .044 : .038, sBase = P.big ? top + .004 : top, S = R.S = P.big ? P.S + .007 : P.S;
+  const z0 = P.z0, top = P.S - .008, sh = P.big ? .044 : .038, sBase = top, S = R.S = P.big ? P.S + .002 : P.S;
   R.rearZ = .045; R.relief = .28; R.ironsDone = o.optic === 'iron';
-  Bx(g, P.frameC, .028, -.02, .006, z0 + .02, .05);                         // frame with dust cover
+  const fTop = Math.max(.006, top - sh + .002);                             // the frame rises to meet the slide (taller on a big frame)
+  Bx(g, P.frameC, .028, -.02, fTop, z0 + .02, .05);                         // frame with dust cover
   for (let k = 0; k < 3; k++) Bx(g, GC.black, .03, -.016, -.012, z0 + .03 + k * .012, z0 + .036 + k * .012);
   Cz(g, GC.metal, P.big ? .01 : .0075, z0 - .003, z0 + .05, top - sh / 2, 10);            // barrel (stays put)
   Bx(g, GC.metal, .016, top - sh / 2 - .006, top - .006, -.045, -.005);    // barrel hood, seen through the port
@@ -674,10 +678,19 @@ function pistolKit(g, R, o, P) {
   Bx(sl, P.slideC, P.big ? .03 : .026, top - .012, top, z0, .06);
   Bx(sl, GC.black, .004, top - .025, top - .004, -.05, -.002, .0151 + (P.big ? .002 : 0)); // ejection port
   for (let k = 0; k < 5; k++) Bx(sl, GC.black, (P.big ? .036 : .032), top - sh + .006, top - .014, .022 + k * .007, .025 + k * .007);
-  if (P.big) Bx(sl, P.slideC, .016, top, top + .004, z0, .04);
+  if (P.big) {
+    // a hand cannon: a rail along the top of the barrel section,
+    // a stepped muzzle, a hammer and a safety lever
+    for (let k = 0; k < 9; k++) Bx(sl, GC.dark, .011, top, top + .004, z0 + .016 + k * .014, z0 + .024 + k * .014);   // rail teeth
+    Bx(sl, GC.dark, .009, top - .001, top + .0015, z0 + .012, z0 + .14);                                 // rail spine
+    Bx(sl, P.slideC, .03, top - sh + .004, top - .006, z0 - .004, z0 + .004);                           // muzzle step
+    Bx(g, GC.dark, .012, top - .02, top - .003, .066, .078);                                             // hammer
+    Bx(g, GC.dark, .006, top - .016, top - .006, .045, .062, .019);                                      // safety lever
+  }
   if (o.optic === 'iron') dotSights(sl, .047, z0 + .012, sBase, S, P.big);
-  Grip(g, P.gripC, .03, P.gripH, .046, -.004, .05, -.22);
-  Bx(g, P.frameC, .02, -.012, .004, .038, .062);                            // beavertail
+  Grip(g, P.gripC, P.big ? .034 : .03, P.gripH, P.big ? .05 : .046, -.004, .05, -.22);
+  if (P.big) for (const sd of [-1, 1]) { const pnl = new THREE.Group(); pnl.rotation.x = -.22; pnl.position.set(0, -.004, .05); g.add(pnl); Bx(pnl, 0x1B1C1E, .004, -P.gripH + .014, -.012, -.02, .022, sd * .0172); }   // rubber grip panels
+  Bx(g, P.frameC, .02, -.012, fTop - .002, .038, .062);                     // beavertail
   trig(g, -.02, -.01, P.frameC === GC.metal ? GC.metal : GC.dark);
   const mh = P.gripH - .02 + (P.longMag || 0);
   const mg = new THREE.Group(); mg.position.set(0, -.012, .052); mg.rotation.x = -.22; g.add(mg);
@@ -689,6 +702,56 @@ function pistolKit(g, R, o, P) {
   R.eject = { x: .02, y: top - .01, z: -.03 };
   R.railOn = () => { Bx(sl, GC.black, .022, top, top + .006, -.03, .02); return top + .006; };
   return { z: -.005, base: top, rear: [.047, top], front: [z0 + .012, top], pistol: true };
+}
+
+/* ---------- muzzle crowns: every barrel ends open, with the rifling twisting away inside ----------
+   A short crown is added on the end of the barrel (or the muzzle device): a ring face round the bore, a polygonal
+   bore whose lands twist as they go in, and darkness at the bottom. Rifles with a bare barrel also get the thread
+   that a muzzle device would screw on to. */
+const boreWallMat = new THREE.MeshPhongMaterial({ color: 0x3A3C3F, specular: 0x555555, shininess: 30, flatShading: true, side: THREE.BackSide });
+const boreDarkMat = new THREE.MeshBasicMaterial({ color: 0x050506 });
+function crown(host, x, y, z, rOut, rBore, c, opts = {}) {
+  const L = opts.len || Math.max(.008, rBore * 1.4), seg = opts.seg || 14;
+  // outer lip of the crown, open at both ends so the bore shows through
+  const lip = new THREE.Mesh(new THREE.CylinderGeometry(rOut, rOut, L, seg, 1, true), pmat(c)); lip.rotation.x = Math.PI / 2; lip.position.set(x, y, z - L / 2); host.add(lip);
+  const face = new THREE.Mesh(new THREE.RingGeometry(rBore * 1.15, rOut, seg), pmat(c)); face.rotation.y = Math.PI; face.position.set(x, y, z - L); host.add(face);
+  // a recessed chamfer just inside the face
+  const ch = new THREE.Mesh(new THREE.CylinderGeometry(rBore * 1.15, rBore, L * .18, 12, 1, true), boreWallMat); ch.rotation.x = -Math.PI / 2; ch.position.set(x, y, z - L + L * .09); host.add(ch);
+  // the bore: six lands, each section turned a little further than the last, so the rifling spirals inwards
+  const n = 4, d = L * .82 / n;
+  for (let k = 0; k < n; k++) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(rBore, rBore, d * 1.02, 6, 1, true), boreWallMat);
+    b.rotation.order = 'XYZ'; b.rotation.set(Math.PI / 2, k * .32, 0); b.position.set(x, y, z - L * .18 - d * (k + .5) + .0005); host.add(b);
+  }
+  const bot = new THREE.Mesh(new THREE.CircleGeometry(rBore * 1.05, 10), boreDarkMat); bot.rotation.y = Math.PI; bot.position.set(x, y, z - .0004); host.add(bot);
+  if (opts.thread) for (let k = 0; k < 4; k++) {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(opts.thread * 1.07, opts.thread * 1.07, .0022, 12), pmat(GC.dark)); t.rotation.x = Math.PI / 2; t.position.set(x, y, z + .004 + k * .0055); host.add(t);
+  }
+  return L;
+}
+function addCrowns(R, s, has) {
+  const key = R.key, shotgun = WEAPONS[key] && WEAPONS[key].type === 'shotgun';
+  const bore = r => r * (shotgun ? .72 : s.pistol ? .5 : .42);
+  if (key === 'coach') {
+    const bg = R.hinge.children[0];
+    for (const x of [-.018, .018]) crown(bg, x, .045, -.5, .017, .0125, GC.dark, { len: .01 });
+    return;
+  }
+  if (!R.barrel && !R.mdev) return;                           // launchers and the ray gun have their own fronts
+  const mY = R.muzzleY, mR = R.muzzleR;
+  let L;
+  if (has('suppressor')) L = crown(R.group, 0, mY, R.muzzle, mR + .012, Math.max(.0045, mR * .55), GC.metal, { len: .006, seg: 16 });
+  else if (has('compensator')) L = crown(R.group, 0, mY, R.muzzle, mR + .005, bore(mR), GC.dark, { len: .006, seg: 10 });
+  else if (has('flashhider')) { crown(R.group, 0, mY, R.muzzle + .038, mR + .005, bore(mR), GC.dark, { len: .006, seg: 10 }); L = 0; }
+  else if (R.mdev && R.mdev.visible) {
+    const P = R.mdev.geometry.parameters, r = Math.max(P.radiusTop, P.radiusBottom), zEnd = R.mdev.position.z - P.height / 2;
+    L = crown(R.bar, R.mdev.position.x, R.mdev.position.y, zEnd, r, bore(R.barrel ? R.barrel.r : r * .6), R.mdev.material.color.getHex(), { seg: P.radialSegments });
+  } else {
+    const B = R.barrel, kz = R.bar.scale.z || 1, z = (R.muzzle - R.bar.position.z) / kz;
+    L = crown(R.bar, 0, B.y, z, B.r, bore(B.r), B.c || GC.metal, { thread: !s.pistol && !shotgun ? B.r : 0 });
+    L *= kz;
+  }
+  R.muzzle -= L;
 }
 
 /* ---------- z-fighting guard ----------
@@ -839,7 +902,16 @@ function buildGun(key, optic = 'iron', atts = null) {
     R.glMuzzle = { y, z: z - .2 };
     R.fore = { x: 0, y: y - r + .006, z: z - .06 };
   }
-  if (R.fore && has('angled')) { const t = R.fore.y; Bx(g, GC.black, .03, t - .008, t, R.fore.z - .04, R.fore.z + .04); Hang(g, GC.dark, .026, .045, .075, t - .006, R.fore.z + .0, -.65); R.fore = { x: 0, y: t + .002, z: R.fore.z + .045 }; }   // hand on the handguard, heel of the palm against the grip's sloped back
+  if (R.fore && has('angled')) {
+    // a slim angled foregrip: flat along the rail, a rounded nose at the front, and a long ramp sloping up to the
+    // rear for the heel of the hand
+    const t = R.fore.y, z = R.fore.z, W = .022;
+    Bx(g, GC.black, .026, t - .006, t, z - .05, z + .06);                                   // rail clamp
+    for (const [z0, z1, h] of [[-.05, -.025, .03], [-.025, .0, .026], [.0, .025, .02], [.025, .045, .013], [.045, .06, .007]]) Bx(g, GC.dark, W, t - .006 - h, t - .006, z + z0, z + z1);   // body, stepping down to the rear
+    const ramp = Bx(g, GC.dark, W, -.0035, .0035, -.057, .057); ramp.position.set(0, t - .006 - .0185, z + .007); ramp.rotation.x = -Math.atan2(.026, .1);   // smooth sloped underside over the steps
+    const nose = new THREE.Mesh(new THREE.CylinderGeometry(.0148, .0148, W, 12), pmat(GC.dark)); nose.rotation.z = Math.PI / 2; nose.position.set(0, t - .006 - .0225, z - .036); g.add(nose);   // rounded nose
+    R.fore = { x: 0, y: t + .014, z: z + .045, kind: 'afg' };                               // hand round the handguard, heel of the palm on the ramp
+  }
   if (has('laser')) {
     const lx = R.fore ? .044 : 0, ly = R.fore ? (R.barrel ? R.barrel.y : mY) - .008 : -.03, lz = R.fore ? R.fore.z - .06 : Math.max(R.muzzle * .65, -.13);
     if (R.fore) Bx(g, GC.black, .014, ly - .006, ly + .006, lz - .02, lz + .02, lx - .016);   // mount to the handguard
@@ -849,6 +921,7 @@ function buildGun(key, optic = 'iron', atts = null) {
     R.laser = { x: lx, y: ly, z: lz - .036 };
   }
   deZfight(g);
+  addCrowns(R, s, has);
   // magazine
   if (has('extmag') && R.mag) { R.mag.scale.y = 1.4; R.magH *= 1.4; }
   // fast mags: an orange pull tab hanging from the base plate, wherever the mag's bottom ends up (curved mags too)

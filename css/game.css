@@ -427,3 +427,16 @@ body.split #loading{padding:0 4vw 12vh} body.split #ldMap{font-size:clamp(44px,5
 body.split #banner h2{font-size:clamp(30px,3vw,52px)}
 body.split #editor{overflow-y:auto;display:block}
 body.split .edgrid{grid-template-columns:1fr} body.split .edload{border-right:0;overflow:visible} body.split .edpick{overflow:visible}
+
+/* switch player, fullscreen */
+.pcard{cursor:pointer}
+.pcard:hover{border-color:rgba(243,154,38,.6)}
+.fsbtn{margin-left:10px;display:grid;place-items:center;width:44px;height:44px;flex:none;padding:0;border:1px solid rgba(236,226,204,.18);background:rgba(14,20,26,.75);color:var(--sand);cursor:pointer}
+.fsbtn:hover{border-color:var(--signal);color:var(--signal)}
+.mlist.big .mi.small{font-size:30px;margin-top:10px;opacity:.85}
+.mi .cur{font-size:.55em;color:var(--signal);letter-spacing:.08em;margin-left:10px;vertical-align:middle}
+.card2 .plist{list-style:none;margin:10px 0 0;padding:0}
+.card2 .plist li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(236,226,204,.1);font:500 20px/1.1 var(--ui);letter-spacing:.04em;text-transform:uppercase;color:var(--sand)}
+.card2 .plist li b{color:var(--signal);font-weight:500}
+@media (max-width:900px){.mlist.big .mi.small{font-size:26px}}
+.mi.sel .cur{color:rgba(20,16,10,.75)}

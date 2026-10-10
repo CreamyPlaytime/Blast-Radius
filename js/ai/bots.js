@@ -230,6 +230,10 @@ function updateBot(b, dt) {
 }
 function poseSoldier(e, dt, combat, melee) {
   const m = e.model, sp = Math.hypot(e.vel.x, e.vel.z), run = clamp(sp / 4.6, 0, 1.2);
+  // the gun comes up to the eye as they aim in, and the knife comes out for a stab
+  const mk = meleeProgress(e);
+  poseHands(m, combat || mk > 0 ? (e === G.player ? G.adsT : (e.adsK || 0)) : 0, mk);
+  melee = melee && mk <= 0;
   m.group.position.copy(e.pos); m.group.rotation.y = e.yaw;
   e.walkPhase = (e.walkPhase || 0) + sp * dt * 1.85;
   const ph = e.walkPhase;
@@ -238,25 +242,27 @@ function poseSoldier(e, dt, combat, melee) {
     m.group.position.x += Math.sin(e.yaw) * .95; m.group.position.z += Math.cos(e.yaw) * .95; m.group.position.y += .14;
     m.spine.rotation.x = 0; m.head.rotation.x = 1.15; m.hips.position.y = .95;
     for (let i = 0; i < 2; i++) { const L = m.legs[i]; L.thigh.rotation.x = Math.sin(ph * 2 + i * Math.PI) * .2 * Math.min(1, run * 3); L.knee.rotation.x = -.15; }
-    m.aim.rotation.set(1.42 + e.pitch * .7, 0, 0);
+    m.aim.rotation.set(1.42 + e.pitch * .7, m.blade || 0, 0);
     return;
   }
   m.group.rotation.x = 0;
   const crouch = e.stance === 'crouch' || e.slideT > 0;
   const sprinting = !combat && run > .7;
   // lean into the run: a lot when sprinting, a little while strafing in a fight
-  const lean = e.slideT > 0 ? .25 : crouch ? -.2 : -(sprinting ? .34 : .12) * Math.min(1, run);
+  const lean = e.slideT > 0 ? .25 : crouch ? -.28 : -(sprinting ? .34 : .12) * Math.min(1, run);
   m.spine.rotation.x = lerp(m.spine.rotation.x, lean, Math.min(1, dt * 7));
   for (let i = 0; i < 2; i++) {
     const L = m.legs[i], s = Math.sin(ph + i * Math.PI);
     if (e.slideT > 0) { L.thigh.rotation.x = i ? 1.3 : .2; L.knee.rotation.x = i ? -1.9 : -.1; }
-    else if (crouch) { L.thigh.rotation.x = 1.15 + s * .22 * run; L.knee.rotation.x = -1.95 + Math.max(0, s) * .3 * run; }
+    else if (crouch) { L.thigh.rotation.x = 1.3 + s * .2 * run; L.knee.rotation.x = -2.15 + Math.max(0, s) * .3 * run; }
     else { L.thigh.rotation.x = s * (sprinting ? .85 : .6) * Math.min(1, run); L.knee.rotation.x = -.06 - Math.max(0, Math.sin(ph + i * Math.PI - 1.4)) * (sprinting ? 1.5 : 1.05) * Math.min(1, run); }
   }
-  m.hips.position.y = (e.slideT > 0 ? .45 : crouch ? .58 : .95) + Math.abs(Math.cos(ph)) * .045 * Math.min(1, run) - (sprinting ? .03 : 0);
-  m.head.rotation.x = -m.spine.rotation.x * .6;
-  if (combat) m.aim.rotation.set(e.pitch - m.spine.rotation.x + (melee ? -.6 : 0), 0, 0);
-  else { const sw = Math.sin(ph) * .07 * run; m.aim.rotation.set(-.6 * Math.min(1, run) - m.spine.rotation.x * .4 - .1, .5 * Math.min(1, run) + sw, .3 * Math.min(1, run)); }
+  m.hips.position.y = (e.slideT > 0 ? .45 : crouch ? .5 : .95) + Math.abs(Math.cos(ph)) * .045 * Math.min(1, run) - (sprinting ? .03 : 0);
+  // the head looks where they aim (and goes down onto the stock when aimed in)
+  m.head.rotation.x = -m.spine.rotation.x * .6 + (m.tilt || 0) + (combat ? clamp(e.pitch, -.8, .8) * .55 : 0);
+  const bl = m.blade || 0;
+  if (combat) m.aim.rotation.set(e.pitch - m.spine.rotation.x + (melee ? -.6 : 0), bl, 0);
+  else { const sw = Math.sin(ph) * .07 * run; m.aim.rotation.set(-.6 * Math.min(1, run) - m.spine.rotation.x * .4 - .1, bl + .5 * Math.min(1, run) + sw, .3 * Math.min(1, run)); }
 }
 /* ---------- deaths: a hit reaction, the knees going, then a heavy fall that depends on where the shot came from ---------- */
 function setupDeath(e) {
@@ -297,13 +303,15 @@ function animateDead(e) {
   m.hips.position.y = D.kind === 'crumple' ? lerp(.95, .5, buckle) : .95 - .12 * buckle;
   const thigh = D.kind === 'crumple' ? 1.15 : D.kind === 'front' ? .45 : -.15, knee = D.kind === 'crumple' ? -2.0 : D.kind === 'front' ? -.9 : -.55;
   m.legs.forEach((L, i) => { const w = i ? 1 : .8; L.thigh.rotation.x = thigh * buckle * w + (D.kind === 'back' ? .35 * react * (i ? 1 : -.4) : 0); L.knee.rotation.x = knee * buckle * w * (1 - land * .3); });
+  if (m.hold) poseHands(m, 0, 0);
+  const bl = m.blade || 0;
   m.spine.rotation.x = D.kind === 'back' ? .3 * react * (1 - fallP * .6) : D.kind === 'front' ? -.35 * buckle : -.55 * buckle;
   m.head.rotation.x = D.head ? .95 * react - .45 * land : D.kind === 'back' ? .35 * react : -.35 * buckle;
   const sw = D.side * .45 * fallP;
   if (m.aim) {
     // soldiers: the gun and arms fly up and out on a shot from the front, drop and reach forward otherwise
-    if (D.kind === 'back') m.aim.rotation.set(1.3 * react - .55 * fallP, sw * .6, sw);
-    else m.aim.rotation.set(-.9 * buckle - .2 * react, sw * .4, sw * .6);
+    if (D.kind === 'back') m.aim.rotation.set(1.3 * react - .55 * fallP, bl + sw * .6, sw);
+    else m.aim.rotation.set(-.9 * buckle - .2 * react, bl + sw * .4, sw * .6);
   } else if (m.arms) {
     m.arms.forEach((A, i) => { const s = i ? 1 : -1; A.upper.rotation.set(D.kind === 'back' ? 2.2 * react * (1 - fallP * .55) : 1.1 * buckle, 0, s * (.25 + .55 * fallP)); if (A.elbow) A.elbow.rotation.x = -.6 * buckle; });
   }

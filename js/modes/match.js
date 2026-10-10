@@ -132,18 +132,19 @@ function pauseOptRows() {
     rng('Mouse sensitivity', 'sens', .2, 3, .1, v => v.toFixed(1)),
     rng('Stick sensitivity', 'padSens', .3, 2.5, .1, v => v.toFixed(1)),
     rng('Field of view', 'fov', 65, 105, 1, v => `${Math.round(v)}\u00B0`),
-    tog('Aim assist', () => ({ off: 'Off', standard: 'Standard', strong: 'Strong' })[S.aimAssist], () => { S.aimAssist = cycle(['off', 'standard', 'strong'], S.aimAssist, 1); }),
+    tog('Aim assist', () => ({ off: 'Off', standard: 'Standard', strong: 'Strong' })[S.aimAssist], d => { S.aimAssist = cycle(['off', 'standard', 'strong'], S.aimAssist, d); }),
     rng('Master volume', 'vol', 0, 1, .05, v => Math.round(v * 100)),
     rng('Music volume', 'music', 0, 1, .05, v => Math.round(v * 100)),
     rng('Voice volume', 'voiceVol', 0, 1, .05, v => Math.round(v * 100)),
     tog('Announcer', () => S.announcer !== false ? 'On' : 'Off', () => { S.announcer = S.announcer === false; }),
     tog('Squad callouts', () => S.callouts !== false ? 'On' : 'Off', () => { S.callouts = S.callouts === false; }),
     tog('Kill cams', () => S.killcam !== false ? 'On' : 'Off', () => { S.killcam = S.killcam === false; }),
-    tog('Controller', () => padLabel(), () => cyclePadPref(1)),
+    tog('Controller', () => padLabel(), d => cyclePadPref(d)),
+    tog('Fullscreen', () => isFullscreen() ? 'On' : 'Off', () => toggleFullscreen()),
   ];
 }
 function renderPauseOpts() {
-  const box = $('#pauseOptList'); box.innerHTML = '';
+  const box = $('#pauseOptList'), had = [...box.querySelectorAll('input, button')].indexOf(activeEl()); box.innerHTML = '';
   for (const r of pauseOptRows()) {
     const row = document.createElement('div'); row.className = 'poptrow';
     if (r.kind === 'range') {
@@ -160,10 +161,13 @@ function renderPauseOpts() {
     } else {
       row.innerHTML = `<span class="pl">${r.label}</span><button type="button" class="ptog">${r.get()}</button>`;
       const b = row.querySelector('button');
-      b.addEventListener('click', () => { r.flip(); saveSettings(); b.textContent = r.get(); uiSound('move'); });
+      // A or click steps forward; left and right on a controller step either way
+      b._flip = d => { r.flip(d); saveSettings(); b.textContent = r.get(); uiSound('move'); };
+      b.addEventListener('click', () => b._flip(1));
     }
     box.appendChild(row);
   }
+  if (had >= 0) { const f = box.querySelectorAll('input, button')[had]; if (f) f.focus(); }
 }
 function showPauseOpts(on) {
   $('#pauseMain').hidden = on; $('#pauseOpts').hidden = !on;

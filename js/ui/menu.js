@@ -49,8 +49,19 @@ function screenDef(id) {
       { label: 'Play with friends', desc: 'Team up or face off. Two windows on two monitors, split screen on one, or an online game friends join with a code.', act: () => go('party'), side: sidePartyInfo },
       { label: 'Create a Class', desc: `Build five loadouts from ${PRIMARIES.length} primaries and ${SECONDARIES.length} sidearms and launchers: optics, ammo types, up to five attachments, three to six perks and a wildcard.`, act: () => openEditor(S.classIdx), side: sideClasses },
       { label: 'Options', desc: 'Sensitivity, field of view, audio, kill cams and your callsign.', act: () => go('opt'), side: sideControls },
+      { label: 'Switch player', small: true, desc: `Playing as ${esc(S.profile.name)}. Not you? Pick your own profile: everyone on this computer keeps their own callsign, classes, level and sensitivity.`, act: () => go('who'), side: sideWho },
     ],
   };
+  if (id === 'who') {
+    const list = listProfiles(), free = freeProfileSlot();
+    return {
+      crumb: '<b>Switch player</b>', head: '<small>Who\u2019s playing?</small>Players', side: sideWho, items: [
+        ...list.map(p => ({ label: `${esc(p.name)}${p.slot === PROFILE_SLOT ? ' <small class="cur">\u2022 playing</small>' : ''}`, desc: `Level ${p.level}.${p.slot === PROFILE_SLOT ? ' This is the profile in use.' : ' Play as this profile: its callsign, classes, level and sensitivity.'}`, act: () => { useProfile(p.slot); uiSound('select'); back(); } })),
+        ...(free ? [{ label: 'New player', sep: true, desc: 'Start a fresh profile with the default classes, then pick a callsign.', act: () => { useProfile(free, true); MENU.stack = [['main', 0]]; MENU.screen = 'opt'; MENU.sel = 0; menuContext(); renderMenu(); setTimeout(() => { const i = $('#optName'); if (i) { i.focus(); i.select(); } }, 30); } }] : []),
+        { label: 'Back', sep: !free, desc: 'Keep playing as ' + esc(S.profile.name) + '.', act: back },
+      ],
+    };
+  }
   if (id === 'mp') {
     const ffa = S.mode === 'ffa', M = MODES[S.mode];
     return {
@@ -89,6 +100,8 @@ function screenDef(id) {
       { label: 'Announcer', kind: 'choice', value: () => S.announcer !== false ? 'On' : 'Off', change: () => { S.announcer = S.announcer === false; }, desc: 'Calls out the match start, multi-kills, streaks, the lead, the last minute and the result.' },
       { label: 'Squad callouts', kind: 'choice', value: () => S.callouts !== false ? 'On' : 'Off', change: () => { S.callouts = S.callouts === false; }, desc: 'Teammates near you call contacts, reloads, grenades and kills over the radio.' },
       { label: 'Kill cams', kind: 'choice', value: () => S.killcam !== false ? 'On' : 'Off', change: () => { S.killcam = S.killcam === false; }, desc: 'Replay your death from the killer\'s eyes.' },
+      { label: 'Fullscreen', kind: 'choice', value: () => isFullscreen() ? 'On' : 'Off', change: () => toggleFullscreen(), desc: fullscreenNote() },
+      { label: 'Switch player', desc: `Playing as ${esc(S.profile.name)}. Pick another saved profile or start a new one.`, act: () => go('who') },
       { label: 'Controls', sep: true, desc: 'Keyboard, mouse and controller layouts.', act: () => go('controls') },
     ],
   };
@@ -128,7 +141,8 @@ function lobbyDef() {
       { label: 'Open Player 2 window', sep: true, desc: 'Opens a second game window that joins this party. Drag it onto your other monitor and press F11 for fullscreen.', act: () => { netOpenP2(); } },
       { label: 'Split screen', kind: 'choice', value: () => NET.splitFrame ? 'On' : 'Off', change: () => netSplit(!NET.splitFrame), desc: 'Player 2 plays on the right half of this screen, with their own controller.' },
     ] : []),
-    { label: 'Fullscreen', desc: 'Fill the whole monitor with this window.', act: netFullscreen },
+    { label: 'Switch player', desc: `Playing as ${esc(S.profile.name)}. Pick your own profile without leaving the party.`, act: () => go('who') },
+    { label: 'Fullscreen', kind: 'choice', value: () => isFullscreen() ? 'On' : 'Off', change: () => toggleFullscreen(), desc: fullscreenNote() },
     { label: 'Leave party', desc: host ? 'Ends the party for everyone.' : 'Go back to playing on your own.', act: () => { netLeave(true); MENU.stack = [['main', 0]]; MENU.screen = 'party'; MENU.sel = 0; menuContext(); renderMenu(); } },
   ];
   if (!host) {
@@ -203,6 +217,38 @@ function sideClasses() {
 const KB_KEYS = [['W A S D', 'Move'], ['Mouse', 'Look \u00B7 left fire \u00B7 right aim'], ['Shift', 'Sprint'], ['Space', 'Jump \u00B7 climb ledges and windows'], ['C', 'Crouch \u00B7 hold to go prone \u00B7 slide'], ['R', 'Reload \u00B7 again to cancel'], ['F', 'Hold to use or buy'], ['V', 'Knife'], ['G / Q', 'Hold to cook or aim, release to throw'], ['R while holding', 'Cancel a throw'], ['1 2', 'Primary / sidearm'], ['Tab', 'Scoreboard'], ['Esc', 'Pause']];
 const PAD_KEYS = [['LS / RS', 'Move / look \u00B7 L3 sprint \u00B7 R3 knife'], ['LT / RT', 'Aim / fire'], ['A', 'Jump \u00B7 climb'], ['B', 'Crouch \u00B7 hold to go prone \u00B7 slide'], ['X', 'Reload (again to cancel) \u00B7 hold to use'], ['Y', 'Swap weapon'], ['RB / LB', 'Hold to cook or aim, release to throw'], ['X while holding', 'Cancel a throw'], ['View', 'Scoreboard'], ['Start', 'Pause']];
 const keyList = list => `<div class="keylist">${list.map(([k, v]) => `<kbd>${k}</kbd><span>${v}</span>`).join('')}</div>`;
+function sideWho() {
+  const list = listProfiles();
+  return `<div class="card2"><p class="k">On this computer</p><h3>Players</h3><ul class="plist">${list.map(p => `<li><span>${esc(p.name)}</span>${p.slot === PROFILE_SLOT ? '<b>Playing</b>' : `<span>Lv ${p.level}</span>`}</li>`).join('')}</ul><p class="k" style="margin-top:14px">The game remembers who played last. Switch here any time, even in a party lobby.</p></div>`;
+}
+/* ---------- fullscreen: any page, any device that allows it ---------- */
+function fsElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+function isFullscreen() { return !!fsElement(); }
+function fsAllowed() { const d = document.documentElement; return !!(d.requestFullscreen || d.webkitRequestFullscreen) && (document.fullscreenEnabled !== false || document.webkitFullscreenEnabled); }
+const IS_IPHONE = /iPhone|iPod/.test(navigator.userAgent);
+function fullscreenNote() {
+  if (IS_IPHONE) return 'iPhones don\u2019t let web pages go fullscreen. In Safari tap Share, then Add to Home Screen, and open the game from that icon: it runs fullscreen with no browser bars.';
+  if (!fsAllowed()) return 'This page isn\u2019t allowed to go fullscreen here. Open the game\u2019s own link (your GitHub Pages copy) to play fullscreen.';
+  return 'Fill the whole screen. On a phone or tablet this also hides the browser bars and turns to landscape.';
+}
+function toggleFullscreen() {
+  try {
+    if (isFullscreen()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    const d = document.documentElement, req = d.requestFullscreen || d.webkitRequestFullscreen;
+    if (!req || !fsAllowed()) { popupMsg(fullscreenNote()); return; }
+    const p = req.call(d, { navigationUI: 'hide' });
+    const lock = () => { try { if (screen.orientation && screen.orientation.lock && matchMedia('(pointer:coarse)').matches) screen.orientation.lock('landscape').catch(() => {}); } catch (e) {} };
+    if (p && p.then) p.then(lock).catch(() => popupMsg(fullscreenNote())); else lock();
+  } catch (e) { popupMsg(fullscreenNote()); }
+}
+function popupMsg(t) { const d = $('#mDesc'); if (d && G.state === 'menu') d.textContent = t; }
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => {
+  if (typeof menuActive === 'function' && menuActive() && MENU.screen !== 'title') renderMenu();
+  if (G.state === 'paused' && !$('#pauseOpts').hidden) renderPauseOpts();
+  if (typeof resize === 'function') setTimeout(resize, 60);
+});
+$('#fsBtn').addEventListener('click', e => { e.stopPropagation(); toggleFullscreen(); uiSound('select'); });
+$('#pcard').addEventListener('click', () => { if (G.state === 'menu' && MENU.screen !== 'title' && MENU.screen !== 'who') { go('who'); uiSound('select'); } });
 function sideControls() { return `<div class="card2"><p class="k">${inputMode === 'pad' ? 'Controller' : 'Keyboard and mouse'}</p><h3>Controls</h3>${keyList(inputMode === 'pad' ? PAD_KEYS : KB_KEYS)}</div>`; }
 function sideControlsFull() { return `<div class="card2"><p class="k">Keyboard and mouse</p>${keyList(KB_KEYS)}</div><div class="card2"><p class="k">Controller</p>${keyList(PAD_KEYS)}</div>`; }
 function mapCard(name, sub) { return `<div class="card2"><p class="k">Map</p><h3>${name}</h3><p>${sub}</p><canvas class="mapcv" id="mMapCv" width="320" height="224"></canvas></div>`; }
@@ -255,7 +301,7 @@ function renderMenu() {
   list.innerHTML = def.items.map((it, i) => {
     const v = it.value ? it.value() : '';
     const val = it.kind === 'choice' ? `<span class="val"><i class="arr" data-d="-1">\u25C0</i>${v}<i class="arr" data-d="1">\u25B6</i></span>` : it.kind ? `<span class="val">${v}</span>` : '';
-    return `<button type="button" class="mi${i === MENU.sel ? ' sel' : ''}${it.sep ? ' sep' : ''}" data-i="${i}"><span>${it.label}</span>${val}</button>`;
+    return `<button type="button" class="mi${i === MENU.sel ? ' sel' : ''}${it.sep ? ' sep' : ''}${it.small ? ' small' : ''}" data-i="${i}"><span>${it.label}</span>${val}</button>`;
   }).join('');
   const codeIn = $('#joinCode');
   if (codeIn) {

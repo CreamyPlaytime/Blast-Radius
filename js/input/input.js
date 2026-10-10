@@ -167,6 +167,14 @@ function spatial(dir) {
     const step = +cur.step || 1; cur.value = clamp(+cur.value + (dir === 'right' ? step : -step), +cur.min, +cur.max);
     cur.dispatchEvent(new Event('input', { bubbles: true })); return;
   }
+  if (cur._flip && (dir === 'left' || dir === 'right')) { cur._flip(dir === 'right' ? 1 : -1); return; }
+  // option lists go row by row, whatever is in the row (a slider in the middle, a toggle at the right)
+  const row = cur.closest && cur.closest('.poptrow');
+  if (row && (dir === 'up' || dir === 'down')) {
+    const rows = [...root.querySelectorAll('.poptrow')].filter(r => r.offsetParent !== null), i = rows.indexOf(row) + (dir === 'down' ? 1 : -1);
+    const next = rows[i] && rows[i].querySelector('input, button');
+    if (next) { next.focus(); next.scrollIntoView({ block: 'nearest' }); return; }
+  }
   const r = cur.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
   let best = null, bs = 1e9;
   for (const el of list) {

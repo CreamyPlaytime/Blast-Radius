@@ -55,6 +55,21 @@ function soundAt(e, w) {
   playGun(w.d.snd, .9 * clamp(1 - d / 90, .05, 1), pan, supp, d);
 }
 
+const _mo = new THREE.Vector3();
+// where a shot's tracer starts
+function shotOrigin(e, eye, f, right) {
+  if (e === G.player && typeof vmMuzzleWorld === 'function' && vmMuzzleWorld(vm, _mo)) return _mo;
+  if (e !== G.player && modelMuzzle(e, _mo, eye)) return _mo;
+  const mz = e.isBot ? .7 : .5;
+  return _mo.set(eye.x + f.x * mz + right.x * (e.isBot ? .06 : .18), eye.y + f.y * mz - .12, eye.z + f.z * mz + right.z * (e.isBot ? .06 : .18));
+}
+// the muzzle of a soldier model in the world (its flash sits there), if the model is up and close to the eye
+function modelMuzzle(e, out, eye) {
+  const m = e.model; if (!m || !m.flash || !m.group.visible || !e.alive) return null;
+  m.group.updateMatrixWorld(true); m.flash.getWorldPosition(out);
+  if (!Number.isFinite(out.x) || out.distanceTo(eye) > 2.2 || (out.x === 0 && out.y === 0 && out.z === 0)) return null;
+  return out;
+}
 function shoot(e, yaw, pitch, spread, dmgMul) {
   const w = weapon(e);
   e.sc = ((e.sc || 0) + 1) % 1000;   // other windows play the shot when this count changes
@@ -73,12 +88,14 @@ function shoot(e, yaw, pitch, spread, dmgMul) {
     fireProjectile(e, w.d.proj, tmpO, d);
   } else {
     const am = w.am || AMMO.std, n = w.pellets || w.d.pellets;
+    // tracers start at the muzzle: your own gun's muzzle as it sits on screen, or the soldier model's muzzle
+    const M = shotOrigin(e, tmpO, f, right);
     for (let k = 0; k < n; k++) {
       const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * spread;
       const d = f.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
       const T = fireRay(e, tmpO, d, w, dmgMul);
       if (k === 0 && !G.zm) G.events.push({ t: G.now, k: 'shot', id: e.id, x: tmpO.x + d.x * T, y: tmpO.y + d.y * T, z: tmpO.z + d.z * T, snd: w.d.snd, supp });
-      const mz = e.isBot ? .7 : .5, sx = tmpO.x + f.x * mz + right.x * (e.isBot ? .06 : .18), sy = tmpO.y + f.y * mz - .12, sz = tmpO.z + f.z * mz + right.z * (e.isBot ? .06 : .18);
+      const sx = M.x, sy = M.y, sz = M.z;
       const hx = tmpO.x + d.x * T, hy = tmpO.y + d.y * T, hz = tmpO.z + d.z * T;
       if (am.glow && (k === 0 || am.fire)) glowTracer(sx, sy, sz, hx, hy, hz, am.glow);
       else if (am.fire) tracer(sx, sy, sz, hx, hy, hz, 0xFF7A20);

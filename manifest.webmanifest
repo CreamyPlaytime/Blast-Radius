@@ -1,0 +1,11 @@
+{
+  "name": "Blast Radius",
+  "short_name": "Blast Radius",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0d1114",
+  "theme_color": "#0d1114",
+  "icons": []
+}
