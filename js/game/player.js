@@ -18,15 +18,26 @@ const throwHand = new THREE.Group();
 // the right hand that winds up and throws a throwing knife
 const tkHand = new THREE.Group();
 const heldItems = {};
+// a one-piece throwing knife: thin pointed blade, cord-wrapped handle, a ring at the end.
+// Built with the tip at the origin and the handle towards +z.
+function throwKnifeModel() {
+  const g = new THREE.Group(), T = .0035;
+  // the blade narrows in steps to a point, with a brighter edge bevel along one side
+  for (const [z0, z1, h] of [[0, .012, .005], [.012, .026, .010], [.026, .045, .015], [.045, .07, .019], [.07, .112, .021]]) gBox(g, T, h, z1 - z0, 0, (.021 - h) / 2 * .6, (z0 + z1) / 2, GC.metal);
+  gBox(g, T + .0006, .004, .1, 0, -.0085, .06, 0xB8BCC0);
+  // the handle: the steel carries on under a cord wrap, then a ring
+  gBox(g, T, .016, .09, 0, .001, .157, GC.dark);
+  for (let k = 0; k < 6; k++) gBox(g, T + .006, .019, .009, 0, .001, .118 + k * .013, 0x3B3630);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(.009, .0028, 6, 14), pmat(GC.dark)); ring.rotation.y = Math.PI / 2; ring.position.set(0, .001, .21); g.add(ring);
+  return g;
+}
 function heldItem(type) {
   if (heldItems[type]) return heldItems[type];
   const g = new THREE.Group();
   if (type === 'tknife') {
-    // slim balanced throwing knife, held by the cord-wrapped handle
-    gBox(g, .012, .018, .07, 0, 0, .0, GC.black);
-    for (let k = 0; k < 3; k++) gBox(g, .014, .02, .005, 0, 0, -.02 + k * .02, 0x5A4A3A);
-    gBox(g, .004, .022, .13, 0, .001, -.1, GC.metal); gBox(g, .002, .008, .12, 0, -.008, -.098, 0xB8BCC0);
-    const tip = gBox(g, .004, .016, .026, 0, .004, -.168, GC.metal); tip.rotation.x = -.5;
+    // pinch grip: the tip of the blade between thumb and fingers, the rest of the knife out past the hand,
+    // so it spins off the fingers when thrown
+    const kn = throwKnifeModel(); kn.rotation.set(0, Math.PI, Math.PI / 2); kn.position.set(.002, 0, .016); g.add(kn);   // flat of the blade facing you
     tkHand.add(g); g.visible = false;
     return heldItems[type] = g;
   }
@@ -199,8 +210,13 @@ function makeVm(w, sleeve) {
   const rh = makeHand('grip', sleeve); rh.position.set(R.grip.x, R.grip.y, R.grip.z); rh.rotation.x = R.fore ? -.3 : -.22; g.add(rh); R.rh = rh;
   // off hand in its own group so it can reach for magazines
   const lh = new THREE.Group(); g.add(lh); R.lh = lh;
-  if (R.fore) { lh.position.set(0, R.fore.y - .01, R.fore.z); lh.add(makeHand('fore', sleeve, foreFit(R))); }
-  else { lh.position.set(-.005, R.grip.y - .005, R.grip.z - .006); lh.rotation.x = -.22; lh.add(makeHand('cup', sleeve)); }
+  if (R.fore && R.fore.kind === 'vgrip') {
+    // a vertical foregrip: the left hand wraps it like the right hand wraps the pistol grip (the same hand, mirrored)
+    lh.position.set(0, R.fore.y, R.fore.z + .004); lh.scale.x = -1; R.lhRot = -.06; lh.add(makeHand('grip', sleeve));
+  }
+  else if (R.fore) { lh.position.set(0, R.fore.y - .01, R.fore.z); R.lhRot = 0; lh.add(makeHand('fore', sleeve, foreFit(R))); }
+  else { lh.position.set(-.005, R.grip.y - .005, R.grip.z - .006); R.lhRot = -.22; lh.add(makeHand('cup', sleeve)); }
+  lh.rotation.x = R.lhRot;
   R.lhBase = lh.position.clone();
   // sleeves hang from the gun, not the hands, and stay pointed at the shoulders (see aimSleeve)
   R.sleeves = [];
@@ -642,7 +658,7 @@ function updateViewmodel(dt, w, sp, bobY, sprint) {
   const breathe = Math.sin(G.now * 1.7) * .0025 * (1 - a * .7);
   let tiltX = 0, tiltZ = 0, dropY = 0, offX = 0;
   const lh = vm.lh;
-  if (lh) { lh.position.copy(vm.lhBase); lh.rotation.set(vm.fore ? 0 : -.22, 0, 0); if (vm.spare) vm.spare.visible = false; }
+  if (lh) { lh.position.copy(vm.lhBase); lh.rotation.set(vm.lhRot, 0, 0); if (vm.spare) vm.spare.visible = false; }
   if (vm.hinge) vm.hinge.rotation.x = 0;
   if (w.reloading && !w.shellMode) {
     const r = 1 - w.reloadT / w.reloadDur, env = Math.sin(clamp(r / .92, 0, 1) * Math.PI);
@@ -665,7 +681,7 @@ function updateViewmodel(dt, w, sp, bobY, sprint) {
         else if (r < i) { magVis = false; spareVis = true; lh.position.copy(grab); lh.position.y -= (i - r) / .14 * .07; }
         else if (r < i + .16) lh.position.lerpVectors(grab, vm.lhBase, ease((r - i) / .16));
         // tilt the hand to the mag and back smoothly from its own resting angle (snapping back made the arm jump)
-        const base = vm.fore ? 0 : -.22, tk = Math.min(ease((r - o + .18) / .12), 1 - ease((r - i) / .16));
+        const base = vm.lhRot, tk = Math.min(ease((r - o + .18) / .12), 1 - ease((r - i) / .16));
         lh.rotation.x = base + (-.25 - base) * tk;
       } else if (r >= o + .1 && r < i) magVis = false;
       vm.mag.position.y = vm.magY - slide; vm.mag.visible = magVis;
@@ -681,7 +697,22 @@ function updateViewmodel(dt, w, sp, bobY, sprint) {
     if (w.d.anim === 'pistol' && vm.slide && w.reloadEmpty) { const f = w.d.emptyEv[0]; vm.slide.position.z = vm.slideZ + (r < f ? .035 : 0); if (lh) lh.position.lerp(new THREE.Vector3(-.01, vm.S - .01, .03), ease01((.11 - Math.abs(r - f)) / .06)); }
     if (w.d.anim === 'revolver' && vm.cyl) { const k = r > .1 && r < .86 ? 1 : 0; vm.cyl.position.x = k * .03; if (lh) lh.position.set(-.03, .0, -.02 + k * .02); }
     if (w.d.anim === 'lmg' && vm.bolt && vm.coverPivot) { const k = ease01((r - .05) / .1) * (1 - ease01((r - .78) / .1)); vm.bolt.rotation.x = k * 1.2; if (lh && r > .02 && r < .2) lh.position.set(-.02, vm.S, -.1); }
-    if (w.d.anim === 'break' && vm.hinge) { const k = Math.sin(clamp((r - .08) / .84, 0, 1) * Math.PI); vm.hinge.rotation.x = k * .55; if (lh) lh.position.set(-.02, -.04 + k * .03, -.12); }
+    if (w.d.anim === 'break' && vm.hinge) {
+      // the barrels drop open on the hinge (muzzles down, chambers up towards you); the off hand rides the forend
+      // down, reaches back to drop two fresh shells in, then swings the barrels shut
+      const open = ease01((r - .06) / .14) * (1 - ease01((r - .8) / .12)), ang = -open * .62;
+      vm.hinge.rotation.x = ang;
+      tiltZ = -env * .3; tiltX = -env * .12; dropY = -env * .05; offX = -env * .04;
+      if (lh) {
+        const pv = vm.hinge.position, c = Math.cos(ang), sn = Math.sin(ang);
+        const rot = (y, z) => new THREE.Vector3(vm.lhBase.x, pv.y + y * c - z * sn, pv.z + y * sn + z * c);
+        const onFore = rot(vm.lhBase.y - pv.y, vm.lhBase.z - pv.z);
+        const breech = rot(.03, .005).add(new THREE.Vector3(-.04, -.02, .07));   // just behind the open chambers
+        const load = ease01((r - .36) / .1) * (1 - ease01((r - .62) / .1));
+        lh.position.lerpVectors(onFore, breech, load);
+        lh.rotation.x = vm.lhRot + ang * (1 - load) + load * -.5;
+      }
+    }
     if (w.d.anim === 'launcher' && vm.warhead) {
       // the off hand fetches a new rocket and pushes it into the front of the tube
       const fetch = ease01((r - .12) / .16), seat = ease01((r - .4) / .2), back = ease01((r - .66) / .14);
@@ -744,9 +775,9 @@ function updateViewmodel(dt, w, sp, bobY, sprint) {
     const ring = heldItem(H.type).userData.ring; if (ring) ring.visible = !H.cooking;
     const shake = H.cooking && H.fuse < 1 ? Math.sin(G.now * 50) * .004 : 0;
     if (knifeThrow) {
-      // overhand: the knife is drawn back beside the head, blade up
+      // overhand: held by the tip and drawn back beside the head, the handle pointing up over your shoulder
       tkHand.visible = true;
-      tkHand.position.set(.17, -.2 + k * .12, -.24 + k * .05); tkHand.rotation.set(.15 + k * .85, .15, -.2 - k * .1);
+      tkHand.position.set(.15 + k * .02, -.22 + k * .04, -.25 + k * .04); tkHand.rotation.set(.3 + k * 1.05, .1 + k * .15, .1 + k * .42);
     } else { throwHand.visible = true; throwHand.position.set(-.05 + shake, -.18 + k * .12, -.2 + k * .06); throwHand.rotation.set(-1.0 * k + .2, 0, .25); }
   } else if (G.throwT > 0) {
     const k = 1 - G.throwT / .32, s = Math.sin(k * Math.PI);
@@ -754,7 +785,7 @@ function updateViewmodel(dt, w, sp, bobY, sprint) {
     if (knifeThrow) {
       // whip forward and down past the crosshair
       tkHand.visible = true;
-      tkHand.position.set(.17 - k * .1, -.08 - k * .1 + s * .02, -.19 - k * .26); tkHand.rotation.set(1.0 - k * 1.7, .15 - k * .2, -.3 + k * .15);
+      tkHand.position.set(.17 - k * .1, -.18 - k * .04 + s * .04, -.21 - k * .22); tkHand.rotation.set(1.35 - k * 1.9, .25 - k * .25, .52 - k * .4);
     } else { throwHand.visible = true; throwHand.position.set(-.05 + k * .12, -.06 + s * .05, -.14 - k * .35); throwHand.rotation.set(-1.0 + k * 1.6, 0, .25 - k * .2); }
   }
   const swapDip = (G.swapT > 0 ? G.swapT * .9 : 0) + tDip + (G.mantle ? .18 : 0);

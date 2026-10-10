@@ -824,7 +824,7 @@ function buildGun(key, optic = 'iron', atts = null) {
   else if (has('compensator')) { Bx(g, GC.dark, mR * 2 + .014, mY - mR - .007, mY + mR + .007, mz - .05, mz + .004); for (const x of [-1, 1]) for (let k = 0; k < 3; k++) Bx(g, GC.black, .002, mY - .004, mY + .008, mz - .044 + k * .015, mz - .036 + k * .015, x * (mR + .0075)); R.muzzle -= .05; }
   else if (has('flashhider')) { Cz(g, GC.dark, mR + .005, mz - .012, mz + .004, mY, 10); for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4; Bx(g, GC.dark, .005, mY - .0025, mY + .0025, mz - .05, mz - .01, 0).position.set(Math.cos(a) * (mR + .002), mY + Math.sin(a) * (mR + .002), mz - .03); } R.muzzle -= .05; }
   // underbarrel
-  if (R.fore && has('grip')) { const t = R.fore.y; Bx(g, GC.black, .03, t - .008, t, R.fore.z - .025, R.fore.z + .025); Bx(g, GC.dark, .026, t - .085, t - .008, R.fore.z - .016, R.fore.z + .016); Bx(g, GC.black, .03, t - .095, t - .085, R.fore.z - .019, R.fore.z + .019); R.fore = { x: 0, y: t - .06, z: R.fore.z }; }
+  if (R.fore && has('grip')) { const t = R.fore.y; Bx(g, GC.black, .03, t - .008, t, R.fore.z - .025, R.fore.z + .025); Bx(g, GC.dark, .026, t - .085, t - .008, R.fore.z - .016, R.fore.z + .016); Bx(g, GC.black, .03, t - .095, t - .085, R.fore.z - .019, R.fore.z + .019); R.fore = { x: 0, y: t - .04, z: R.fore.z, kind: 'vgrip' }; }
   if (R.fore && has('gl')) {
     // 40mm launcher clamped under the handguard: tube, breech, its own little trigger; the off hand cups the tube
     const t = R.fore.y, z = R.fore.z, r = .022, y = t - .012 - r;
@@ -839,7 +839,7 @@ function buildGun(key, optic = 'iron', atts = null) {
     R.glMuzzle = { y, z: z - .2 };
     R.fore = { x: 0, y: y - r + .006, z: z - .06 };
   }
-  if (R.fore && has('angled')) { const t = R.fore.y; Bx(g, GC.black, .03, t - .008, t, R.fore.z - .04, R.fore.z + .04); Hang(g, GC.dark, .026, .045, .075, t - .006, R.fore.z + .0, -.65); R.fore = { x: 0, y: t - .035, z: R.fore.z + .025 }; }
+  if (R.fore && has('angled')) { const t = R.fore.y; Bx(g, GC.black, .03, t - .008, t, R.fore.z - .04, R.fore.z + .04); Hang(g, GC.dark, .026, .045, .075, t - .006, R.fore.z + .0, -.65); R.fore = { x: 0, y: t + .002, z: R.fore.z + .045 }; }   // hand on the handguard, heel of the palm against the grip's sloped back
   if (has('laser')) {
     const lx = R.fore ? .044 : 0, ly = R.fore ? (R.barrel ? R.barrel.y : mY) - .008 : -.03, lz = R.fore ? R.fore.z - .06 : Math.max(R.muzzle * .65, -.13);
     if (R.fore) Bx(g, GC.black, .014, ly - .006, ly + .006, lz - .02, lz + .02, lx - .016);   // mount to the handguard

@@ -35,7 +35,7 @@ function updatePuffs(dt) {
 }
 function nadeMesh(type) {
   const g = new THREE.Group();
-  if (type === 'tknife') { gBox(g, .012, .022, .16, 0, 0, -.06, 0xC9CED3); gBox(g, .016, .026, .09, 0, 0, .06, 0x2A2A2A); }
+  if (type === 'tknife') { const kn = throwKnifeModel(); kn.position.z = -.1; kn.scale.setScalar(1.3); g.add(kn); }   // tip first, a little bigger so it reads at a distance
   else if (type === 'frag') { const b = new THREE.Mesh(new THREE.SphereGeometry(.055, 10, 8), mat(0x4A5A3A)); g.add(b); gBox(g, .02, .06, .012, .04, .02, 0, GC.metal); gBox(g, .03, .02, .03, 0, .06, 0, GC.metal); }
   else if (type === 'semtex') { gBox(g, .09, .05, .06, 0, 0, 0, 0xD9A441); gBox(g, .03, .02, .03, 0, .035, 0, 0xFF3020); }
   else if (type === 'rocket') {
