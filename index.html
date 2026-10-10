@@ -1,0 +1,170 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Blast Radius</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@400;600;700;800&family=Saira+Stencil+One&family=Teko:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/game.css">
+
+<canvas id="game" tabindex="-1"></canvas>
+
+<div id="menu" class="screen">
+  <div class="mshade"></div>
+  <div class="mscan"></div>
+  <section class="mtitle" id="mTitle">
+    <div class="logo"><span class="l1">Blast</span><span class="l2">Radius</span><span class="hz"></span><span class="tagline">Test Site 7 &#xB7; Party</span></div>
+    <p class="press" id="mPress">Press any button</p>
+  </section>
+  <header class="mtop" id="mTop" hidden>
+    <div class="mbrand">Blast <b>Radius</b></div>
+    <div class="crumb" id="mCrumb"></div>
+    <div class="pcard">
+      <div class="emblem" id="pcEmblem">1</div>
+      <div class="pcinfo"><div class="pcname" id="pcName">Player</div><div class="pclvl"><span id="pcLvl">Level 1</span><span class="xpbar"><i id="pcXp"></i></span></div></div>
+    </div>
+  </header>
+  <main class="mbody" id="mBody" hidden>
+    <div class="mleft"><h1 class="mhead" id="mHead"></h1><nav class="mlist" id="mList" aria-label="Menu"></nav><p class="mdesc" id="mDesc"></p></div>
+    <aside class="mside" id="mSide"></aside>
+  </main>
+  <footer class="mfoot" id="mFoot"></footer>
+  <div class="mver">v1.0 &#xB7; party build</div>
+</div>
+
+<div id="loading" hidden>
+  <div class="ld"><p class="ldmode" id="ldMode"></p><h1 id="ldMap"></h1><p class="ldtip" id="ldTip"></p><div class="ldbar"><i></i></div></div>
+</div>
+
+<div id="editor" class="overlay" hidden>
+  <header class="edtop">
+    <h2>Create a Class</h2>
+    <nav class="edslots" id="edSlots" aria-label="Class slots"></nav>
+    <button class="eddone" id="edClose" type="button">Done</button>
+  </header>
+  <div class="edgrid">
+    <aside class="edload">
+      <label class="edname" for="edName"><span>Class name</span><input id="edName" maxlength="16" autocomplete="off" spellcheck="false"></label>
+      <div id="edLoad"></div>
+    </aside>
+    <section class="edpick">
+      <canvas id="edPreview"></canvas>
+      <div id="edBody"></div>
+    </section>
+  </div>
+</div>
+
+<div id="hud" hidden>
+  <div id="zmHud" hidden>
+    <div id="zmRound"></div>
+    <div id="zmPoints"><b id="zmPts">500</b><div id="zmPop"></div></div>
+    <div id="zmPerks"></div>
+    <div id="zmPowers"></div>
+    <div id="zmDown" hidden>Down</div>
+  </div>
+  <div id="vignette"></div>
+  <div id="stunfx"></div>
+  <div id="flashfx"></div>
+  <div id="nades"></div>
+  <div id="scope"></div>
+  <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="d"></i></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+  <div id="dmg"></div>
+  <div id="minimapWrap"><canvas id="minimap" width="352" height="352"></canvas></div>
+  <div id="killfeed"></div>
+  <div id="scorebar"></div>
+  <div id="cook" hidden></div>
+  <div id="hpbox"><div id="perkrow"></div><div id="stance"></div><div class="row"><span>HP</span><div class="bar"><i id="hpFill"></i></div></div></div>
+  <div id="weaponbox"><div class="equip" id="wEquip"></div><div class="wname" id="wName"></div><div class="ammo" id="wAmmo"></div><div class="alt" id="wAlt"></div><div class="reload" id="wReload"><i></i></div></div>
+  <div id="popups"></div>
+  <div id="prompt"></div>
+  <div id="usebox" hidden><div class="t" id="useText"></div><div class="bar"><i id="useFill"></i></div></div>
+  <div id="banner"><h2 id="bannerTitle"></h2><p id="bannerSub"></p></div>
+  <div id="death" hidden><h2>Killed</h2><p id="deathBy"></p><div class="count" id="deathCount"></div><div class="dclasses" id="deathClasses"></div><div class="dhint" id="deathHint"></div></div>
+  <div id="board" hidden></div>
+  <div id="clicktoplay" hidden>Click to lock your mouse</div>
+</div>
+
+<div id="killcam" hidden>
+  <div class="kcbar top"></div><div class="kcbar bot"></div>
+  <div class="kchead"><p class="eyebrow" id="kcTitle">Kill cam</p><h2 id="kcName"></h2><p id="kcSub"></p></div>
+  <div class="kcfoot"><div class="kcprog"><i id="kcProg"></i></div><div class="kcskip" id="kcSkip"></div><div class="dclasses" id="kcClasses"></div></div>
+</div>
+
+<div id="pause" class="overlay" hidden>
+  <div class="card">
+    <h2 id="pauseTitle">Paused</h2>
+    <p class="sub" id="pauseSub"></p>
+    <div id="pauseMain">
+      <div id="pauseBoard"></div>
+      <h4 id="pauseClassHead">Class for next spawn</h4>
+      <div class="pclasses" id="pauseClasses"></div>
+      <div class="btnrow">
+        <button class="btn primary" id="resumeBtn" type="button">Resume</button>
+        <button class="btn" id="pauseEdit" type="button">Edit classes</button>
+        <button class="btn" id="pauseOptBtn" type="button">Options</button>
+        <button class="btn" id="quitBtn" type="button">Quit to menu</button>
+      </div>
+    </div>
+    <div id="pauseOpts" hidden>
+      <div class="popts" id="pauseOptList"></div>
+      <div class="btnrow">
+        <button class="btn primary" id="pauseOptBack" type="button">Back</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="end" class="overlay" hidden>
+  <div class="card">
+    <h2 class="result" id="endTitle"></h2>
+    <p class="sub" id="endSub"></p>
+    <div id="endBoard"></div>
+    <div class="xp" id="endXp"></div>
+    <div class="btnrow">
+      <button class="btn primary" id="againBtn" type="button">Play again</button>
+      <button class="btn" id="menuBtn" type="button">Main menu</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/net/seat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/core/util.js"></script>
+<script src="js/modes/modes.js"></script>
+<script src="js/guns/weapons.js"></script>
+<script src="js/core/settings.js"></script>
+<script src="js/maps/registry.js"></script>
+<script src="js/engine/renderer.js"></script>
+<script src="js/engine/world.js"></script>
+<script src="js/maps/atomic-acres.js"></script>
+<script src="js/maps/freight.js"></script>
+<script src="js/maps/derrick.js"></script>
+<script src="js/maps/gate9.js"></script>
+<script src="js/maps/riptide.js"></script>
+<script src="js/maps/index.js"></script>
+<script src="js/engine/raycast.js"></script>
+<script src="js/engine/nav.js"></script>
+<script src="js/audio/sfx.js"></script>
+<script src="js/audio/music.js"></script>
+<script src="js/audio/voice.js"></script>
+<script src="js/guns/models.js"></script>
+<script src="js/characters/soldier.js"></script>
+<script src="js/characters/zombie.js"></script>
+<script src="js/game/fx.js"></script>
+<script src="js/game/state.js"></script>
+<script src="js/game/physics.js"></script>
+<script src="js/game/combat.js"></script>
+<script src="js/game/equipment.js"></script>
+<script src="js/modes/kill-confirmed.js"></script>
+<script src="js/ai/bots.js"></script>
+<script src="js/input/input.js"></script>
+<script src="js/game/player.js"></script>
+<script src="js/ui/hud.js"></script>
+<script src="js/game/killcam.js"></script>
+<script src="js/modes/match.js"></script>
+<script src="js/modes/zombies.js"></script>
+<script src="js/ui/class-editor.js"></script>
+<script src="js/ui/menu.js"></script>
+<script src="js/net/net.js"></script>
+<script src="js/main.js"></script>
+
+</body></html>
