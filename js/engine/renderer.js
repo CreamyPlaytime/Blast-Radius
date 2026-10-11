@@ -9,9 +9,10 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: AA_AT_START, logar
 // Native follows the screen (capped at 1.5). Low draws one pixel per pixel, and on a big screen (a TV) no more
 // than about 720p's worth, which keeps the drawing buffers small enough for a console's browser.
 const pixelRatio = () => {
-  if (settings.res !== 'low') return Math.min(window.devicePixelRatio || 1, 1.5);
-  const w = window.innerWidth || 1280, h = window.innerHeight || 720;
-  return Math.min(1, Math.sqrt(1280 * 720 / Math.max(1, w * h)));
+  if (settings.res !== 'low' && settings.res !== 'ultra') return Math.min(window.devicePixelRatio || 1, 1.5);
+  // Low: at most about 720p's worth of pixels. Ultra low: about 540p.
+  const w = window.innerWidth || 1280, h = window.innerHeight || 720, px = settings.res === 'ultra' ? 960 * 540 : 1280 * 720;
+  return Math.min(1, Math.sqrt(px / Math.max(1, w * h)));
 };
 renderer.setPixelRatio(pixelRatio());
 renderer.shadowMap.enabled = settings.shadows !== false;
@@ -62,6 +63,13 @@ function applyShadows() {
 }
 // resolution: Low pins the pixel ratio at 1, Native follows the screen (capped at 1.5)
 function applyResolution() { renderer.setPixelRatio(pixelRatio()); resize(); }
+// switching into or out of Ultra low rebuilds the map on screen (merged or not), but never in the middle of a match
+function gfxReloadMap() {
+  if (typeof G === 'undefined' || G.state !== 'menu' || !MAP) return;
+  const want = settings.res === 'ultra', id = MAP.id;
+  if (!!MAP.merged === want) return;
+  MAP = null; loadMap(id, lightingName); MAP.merged = want;
+}
 function applyGraphics() { applyShadows(); applyResolution(); }
 /* The graphics device dropped the context (usually out of video memory, as a console's browser can).
    The menus are ordinary page elements and keep working without it, so nothing here ever covers them: the game
@@ -79,9 +87,9 @@ function gfxNotice(text) {
 }
 canvas.addEventListener('webglcontextlost', e => {
   e.preventDefault();   // ask the browser to give the context back
-  Object.assign(settings, { shadows: false, aa: false, res: 'low' });
+  Object.assign(settings, { shadows: false, aa: false, res: 'ultra', gfxV: 2 });
   try { saveSettings(); } catch (err) {}
-  gfxNotice('The graphics ran out of memory, so lighter settings are now on. The picture should come back in a moment; if it stays blank, reload the page.');
+  gfxNotice('The graphics ran out of memory, so Ultra low graphics are now on. Reload the page to start fresh on them.');
 });
 canvas.addEventListener('webglcontextrestored', () => {
   try { applyGraphics(); } catch (err) {}

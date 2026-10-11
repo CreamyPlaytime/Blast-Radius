@@ -143,7 +143,7 @@ function pauseOptRows() {
     tog('Fullscreen', () => isFullscreen() ? 'On' : 'Off', () => toggleFullscreen()),
     tog('Shadows', () => S.shadows !== false ? 'On' : 'Off', () => { S.shadows = S.shadows === false; applyShadows(); }),
     tog('Anti-aliasing', () => aaLabel(), () => { S.aa = S.aa === false; }),
-    tog('Resolution', () => S.res === 'low' ? 'Low' : 'Native', () => { S.res = S.res === 'low' ? 'native' : 'low'; applyResolution(); }),
+    tog('Graphics', () => ({ native: 'Native', low: 'Low', ultra: 'Ultra low' })[S.res] || 'Native', d => { S.res = cycle(['native', 'low', 'ultra'], S.res, d); applyResolution(); gfxReloadMap(); }),
     tog('Performance stats', () => S.perf ? 'On' : 'Off', () => { S.perf = !S.perf; perfOn(S.perf); }),
   ];
 }
