@@ -8,6 +8,9 @@ const settings = { map: 'acres', zmStart: 1, zmDiff: 'normal', zmMap: 'acres', p
 // soft shadows and a high pixel ratio, so a first run there starts on the light settings. Saved choices win.
 const IS_XBOX = /xbox/i.test(navigator.userAgent || '');
 if (IS_XBOX) Object.assign(settings, { shadows: false, aa: false, res: 'low' });
+// safe mode: the graphics device gave out last time (or the link asks for it with ?safe), so start on the lightest
+// settings no matter what was saved. Applied after the saved settings load, below.
+const SAFE_GFX = /[?&#]safe\b/.test(location.search + location.hash) || (() => { try { return sessionStorage.getItem('blastradius.safe') === '1'; } catch (e) { return false; } })();
 // Each player on this browser has a saved profile: callsign, classes, record, sensitivity. Profile 1 is the
 // original save. A window opens on the profile it last used (Player 2 windows keep their own), and anyone can
 // switch with "Switch player" on the main menu.
@@ -60,6 +63,7 @@ if (!['mp', 'zm'].includes(settings.mpKind)) settings.mpKind = 'mp';
 if (typeof settings.shadows !== 'boolean') settings.shadows = true;
 if (typeof settings.aa !== 'boolean') settings.aa = true;
 if (!['native', 'low'].includes(settings.res)) settings.res = 'native';
+if (SAFE_GFX) Object.assign(settings, { shadows: false, aa: false, res: 'low' });
 // player profile: callsign, XP and service record
 const P0 = { name: 'PLAYER', xp: 0, mp: { matches: 0, wins: 0, kills: 0, deaths: 0 }, zm: { games: 0, kills: 0, best: 0 } };
 settings.profile = Object.assign(clone(P0), settings.profile || {});

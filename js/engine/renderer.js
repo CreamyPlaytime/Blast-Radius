@@ -6,7 +6,13 @@ const canvas = $('#game');
 // antialiasing is fixed when the WebGL context is created, so it takes effect the next time the game loads
 const AA_AT_START = settings.aa !== false;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: AA_AT_START, logarithmicDepthBuffer: true, powerPreference: IS_XBOX ? 'low-power' : 'default' });
-const pixelRatio = () => settings.res === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
+// Native follows the screen (capped at 1.5). Low draws one pixel per pixel, and on a big screen (a TV) no more
+// than about 720p's worth, which keeps the drawing buffers small enough for a console's browser.
+const pixelRatio = () => {
+  if (settings.res !== 'low') return Math.min(window.devicePixelRatio || 1, 1.5);
+  const w = window.innerWidth || 1280, h = window.innerHeight || 720;
+  return Math.min(1, Math.sqrt(1280 * 720 / Math.max(1, w * h)));
+};
 renderer.setPixelRatio(pixelRatio());
 renderer.shadowMap.enabled = settings.shadows !== false;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -45,7 +51,10 @@ scene.add(sun);
 /* ---------- graphics settings, applied live ---------- */
 // shadows: switching the shadow map off also frees its 2048² texture, and every material is flagged so its
 // shader recompiles without (or with) the shadow code on the next frame
+// choosing graphics settings yourself ends the forced safe mode for this session
+const endSafeMode = () => { try { sessionStorage.removeItem('blastradius.safe'); } catch (e) {} };
 function applyShadows() {
+  endSafeMode();
   const on = settings.shadows !== false;
   if (renderer.shadowMap.enabled === on && sun.castShadow === on) return;
   renderer.shadowMap.enabled = on; sun.castShadow = on;
@@ -55,14 +64,33 @@ function applyShadows() {
   scene.traverse(flag); vmScene.traverse(flag);
 }
 // resolution: Low pins the pixel ratio at 1, Native follows the screen (capped at 1.5)
-function applyResolution() { renderer.setPixelRatio(pixelRatio()); resize(); }
+function applyResolution() { endSafeMode(); renderer.setPixelRatio(pixelRatio()); resize(); }
 function applyGraphics() { applyShadows(); applyResolution(); }
-// a dropped context (out of video memory) gets a clear message instead of a blank white screen
+/* The graphics device dropped the context (usually out of video memory, as a console's browser can).
+   First time: switch to the lightest settings, save them, and reload by itself, so nobody is stuck on a screen they
+   can't get past to reach Options. If it happens again in safe mode, say so and offer a reload button.        */
 canvas.addEventListener('webglcontextlost', e => {
   e.preventDefault();
   if (document.getElementById('glLost')) return;
-  document.body.insertAdjacentHTML('beforeend', '<div id="glLost" style="position:fixed;inset:0;z-index:99;display:grid;place-items:center;background:#0d1114;color:#E9DCC0;font:600 18px system-ui;text-align:center;padding:24px">The graphics device ran out of memory.<br>Reload the page, then turn Shadows and Anti-aliasing off and set Resolution to Low in Options.</div>');
+  let tries = 0; try { tries = +(sessionStorage.getItem('blastradius.glLost') || 0); } catch (err) {}
+  Object.assign(settings, { shadows: false, aa: false, res: 'low' });
+  try { saveSettings(); sessionStorage.setItem('blastradius.safe', '1'); sessionStorage.setItem('blastradius.glLost', String(tries + 1)); } catch (err) {}
+  const again = tries >= 1;
+  document.body.insertAdjacentHTML('beforeend', `<div id="glLost" style="position:fixed;inset:0;z-index:99;display:grid;place-items:center;background:#0d1114;color:#E9DCC0;font:600 18px system-ui;text-align:center;padding:24px"><div>${again
+    ? 'The graphics device ran out of memory again, even on the lightest settings.<br>Close other tabs and apps, then try again.<br><button type="button" id="glRetry" style="margin-top:18px;font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#E9DCC0;color:#0d1114">Reload</button>'
+    : 'The graphics device ran out of memory.<br>Switching to lighter graphics and reloading\u2026'}</div></div>`);
+  const b = document.getElementById('glRetry');
+  if (b) {
+    b.addEventListener('click', () => location.reload()); try { b.focus(); } catch (err) {}
+    // any controller button reloads too (on a console there may be no cursor to click with)
+    const held = new Set();
+    for (const gp of (navigator.getGamepads ? navigator.getGamepads() : [])) if (gp) gp.buttons.forEach((bt, i) => { if (bt.pressed) held.add(gp.index + ':' + i); });
+    setInterval(() => { for (const gp of (navigator.getGamepads ? navigator.getGamepads() : [])) if (gp) gp.buttons.forEach((bt, i) => { if (bt.pressed && !held.has(gp.index + ':' + i)) location.reload(); }); }, 100);
+  }
+  else setTimeout(() => location.reload(), 900);
 });
+// a clean start in safe mode clears the counter after a while, so a later hiccup gets the automatic retry again
+setTimeout(() => { try { sessionStorage.removeItem('blastradius.glLost'); } catch (e) {} }, 60000);
 canvas.addEventListener('webglcontextrestored', () => { const el = document.getElementById('glLost'); if (el) el.remove(); });
 
 const flashLight = new THREE.PointLight(0xFFC27A, 0, 9, 2); scene.add(flashLight);
