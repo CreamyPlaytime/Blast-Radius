@@ -394,7 +394,12 @@ function buildGate9() {
   for (const z of [-18.3, 18.3]) flat(.3, z - .08, 33, z + .08, .03, 0xE8E2D2);
   // perimeter
   chainFence('x', -19.1, .3, 33.6); chainFence('x', 19.1, .3, 33.6); chainFence('z', 33.6, -19.1, 19.1);
-  invisWall(.3, -20, 34, -18.95, 10); invisWall(.3, 18.95, 34, 20, 10); invisWall(32.85, -20, 34, 20, 10);
+  // out-of-bounds: the walls reach high above the terminal roof and the plane's tail, so nobody can jump the
+  // fences from up there. Around the terminal they sit just outside its outer walls (not over the roof), so the
+  // roof and parapet stay walkable.
+  const OOB_H = 40;
+  invisWall(.3, -21, 35, -18.95, OOB_H); invisWall(.3, 18.95, 35, 21, OOB_H); invisWall(32.85, -21, 35, 21, OOB_H);
+  invisWall(T0 - 1.3, -21, .3, -19.3, OOB_H); invisWall(T0 - 1.3, 19.3, .3, 21, OOB_H); invisWall(T0 - 1.3, -19.3, T0 - .3, 19.3, OOB_H);
   // the airport beyond
   flat(40, -300, 100, 300, .02, 0x3A3D40, 'asphalt');
   for (let z = -280; z < 280; z += 18) flat(69.6, z, 70.4, z + 9, .03, 0xE8E2D2);

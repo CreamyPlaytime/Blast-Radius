@@ -3,9 +3,12 @@
 
 /* ================= RENDERER ================= */
 const canvas = $('#game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-renderer.shadowMap.enabled = true;
+// antialiasing is fixed when the WebGL context is created, so it takes effect the next time the game loads
+const AA_AT_START = settings.aa !== false;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: AA_AT_START, logarithmicDepthBuffer: true, powerPreference: IS_XBOX ? 'low-power' : 'default' });
+const pixelRatio = () => settings.res === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
+renderer.setPixelRatio(pixelRatio());
+renderer.shadowMap.enabled = settings.shadows !== false;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.autoClear = false;
 const scene = new THREE.Scene();
@@ -33,11 +36,35 @@ const hemi = new THREE.HemisphereLight(0xCFE2EE, 0xB08D63, .62); scene.add(hemi)
 const ambient = new THREE.AmbientLight(0xffffff, .12); scene.add(ambient);
 const sun = new THREE.DirectionalLight(0xFFD9A6, .95);
 sun.position.set(-38, 46, 24);
-sun.castShadow = true;
+sun.castShadow = settings.shadows !== false;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 40, bottom: -40, near: 1, far: 140 });
 sun.shadow.bias = -0.0008;
 scene.add(sun);
+
+/* ---------- graphics settings, applied live ---------- */
+// shadows: switching the shadow map off also frees its 2048² texture, and every material is flagged so its
+// shader recompiles without (or with) the shadow code on the next frame
+function applyShadows() {
+  const on = settings.shadows !== false;
+  if (renderer.shadowMap.enabled === on && sun.castShadow === on) return;
+  renderer.shadowMap.enabled = on; sun.castShadow = on;
+  if (!on && sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
+  renderer.shadowMap.needsUpdate = true;
+  const flag = o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const m of ms) m.needsUpdate = true; };
+  scene.traverse(flag); vmScene.traverse(flag);
+}
+// resolution: Low pins the pixel ratio at 1, Native follows the screen (capped at 1.5)
+function applyResolution() { renderer.setPixelRatio(pixelRatio()); resize(); }
+function applyGraphics() { applyShadows(); applyResolution(); }
+// a dropped context (out of video memory) gets a clear message instead of a blank white screen
+canvas.addEventListener('webglcontextlost', e => {
+  e.preventDefault();
+  if (document.getElementById('glLost')) return;
+  document.body.insertAdjacentHTML('beforeend', '<div id="glLost" style="position:fixed;inset:0;z-index:99;display:grid;place-items:center;background:#0d1114;color:#E9DCC0;font:600 18px system-ui;text-align:center;padding:24px">The graphics device ran out of memory.<br>Reload the page, then turn Shadows and Anti-aliasing off and set Resolution to Low in Options.</div>');
+});
+canvas.addEventListener('webglcontextrestored', () => { const el = document.getElementById('glLost'); if (el) el.remove(); });
+
 const flashLight = new THREE.PointLight(0xFFC27A, 0, 9, 2); scene.add(flashLight);
 // a weapon-mounted torch, used at night
 const torch = new THREE.SpotLight(0xFFF1D6, 0, 34, .42, .55, 1.3);

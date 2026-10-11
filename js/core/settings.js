@@ -3,7 +3,11 @@
 
 /* ================= SETTINGS ================= */
 const clone = o => JSON.parse(JSON.stringify(o));
-const settings = { map: 'acres', zmStart: 1, zmDiff: 'normal', zmMap: 'acres', profile: null, killcam: true, mode: 'tdm', allies: 3, enemies: 4, ffaBots: 7, aimAssist: 'standard', difficulty: 'regular', time: 10, sens: 1, padSens: 1, fov: 82, vol: .7, music: .6, voiceVol: 1, announcer: true, callouts: true, classes: clone(DEFAULT_CLASSES), classIdx: 0, padPref: 'auto', mpTeams: 'coop', mpKind: 'mp' };
+const settings = { map: 'acres', zmStart: 1, zmDiff: 'normal', zmMap: 'acres', profile: null, killcam: true, mode: 'tdm', allies: 3, enemies: 4, ffaBots: 7, aimAssist: 'standard', difficulty: 'regular', time: 10, sens: 1, padSens: 1, fov: 82, vol: .7, music: .6, voiceVol: 1, announcer: true, callouts: true, classes: clone(DEFAULT_CLASSES), classIdx: 0, padPref: 'auto', mpTeams: 'coop', mpKind: 'mp', shadows: true, aa: true, res: 'native', perf: false };
+// graphics: an Xbox's browser has very little video memory and drops the WebGL context (a white screen) under
+// soft shadows and a high pixel ratio, so a first run there starts on the light settings. Saved choices win.
+const IS_XBOX = /xbox/i.test(navigator.userAgent || '');
+if (IS_XBOX) Object.assign(settings, { shadows: false, aa: false, res: 'low' });
 // Each player on this browser has a saved profile: callsign, classes, record, sensitivity. Profile 1 is the
 // original save. A window opens on the profile it last used (Player 2 windows keep their own), and anyone can
 // switch with "Switch player" on the main menu.
@@ -53,6 +57,9 @@ if (!['off', 'standard', 'strong'].includes(settings.aimAssist)) settings.aimAss
 if (!['auto', 'none', 0, 1, 2, 3].includes(settings.padPref)) settings.padPref = 'auto';
 if (!['coop', 'versus'].includes(settings.mpTeams)) settings.mpTeams = 'coop';
 if (!['mp', 'zm'].includes(settings.mpKind)) settings.mpKind = 'mp';
+if (typeof settings.shadows !== 'boolean') settings.shadows = true;
+if (typeof settings.aa !== 'boolean') settings.aa = true;
+if (!['native', 'low'].includes(settings.res)) settings.res = 'native';
 // player profile: callsign, XP and service record
 const P0 = { name: 'PLAYER', xp: 0, mp: { matches: 0, wins: 0, kills: 0, deaths: 0 }, zm: { games: 0, kills: 0, best: 0 } };
 settings.profile = Object.assign(clone(P0), settings.profile || {});

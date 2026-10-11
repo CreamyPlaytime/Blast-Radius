@@ -231,7 +231,7 @@ function previewGun(c) {
 function updatePreview(c) {
   if (!prev) {
     try {
-      const r = new THREE.WebGLRenderer({ canvas: document.createElement('canvas'), antialias: true, alpha: true, preserveDrawingBuffer: true });
+      const r = new THREE.WebGLRenderer({ canvas: document.createElement('canvas'), antialias: settings.aa !== false, alpha: true, preserveDrawingBuffer: true });
       r.setPixelRatio(1);
       const sc = new THREE.Scene(); sc.add(new THREE.AmbientLight(0xffffff, .5));
       const l = new THREE.DirectionalLight(0xFFE2B8, .95); l.position.set(1, 1.5, 1); sc.add(l);

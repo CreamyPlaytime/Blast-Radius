@@ -389,8 +389,9 @@ function poseHound(z, dt) {
   for (const f of m.fire) { const s = .22 + Math.random() * .16; f.scale.set(s, s * 1.4, s); f.position.y = .26 + Math.random() * .06; f.material.opacity = .4 + Math.random() * .4; }
 }
 // zombies hauling themselves up onto a ledge
+// also used mid-leap, while riding another zombie's shoulders and while bracing for one (no climb plan then)
 function poseClimb(z) {
-  const m = z.model, M = z.climb, k = clamp(M.t / M.dur, 0, 1);
+  const m = z.model, M = z.climb || z.leap, k = M && M.dur ? clamp(M.t / M.dur, 0, 1) : .5;
   m.group.position.copy(z.pos); m.group.rotation.set(0, z.yaw, 0);
   if (z.kind === 'dog') { m.body.rotation.x = -.6 * Math.sin(k * Math.PI); m.legs.forEach((L, i) => { L.up.rotation.x = i < 2 ? -1.1 : .8; L.lo.rotation.x = .4; }); return; }
   m.spine.rotation.x = -.5 - Math.sin(k * Math.PI) * .3;

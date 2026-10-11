@@ -3,9 +3,41 @@
 
 /* ---------- physics ---------- */
 const R = .38, STEP = .55, GRAV = 19;
+
+/* ---------- broadphase: a 2 m grid over the collision boxes ----------
+   Every body used to test itself against every box on the map, several times a frame (899 boxes on Gate 9),
+   which was nearly all the time the horde cost. Now each test only looks at the boxes in the grid cells it
+   overlaps. The grid rebuilds itself whenever the box list changes (a map load, zombies props going in/out). */
+const BGRID = { S: 2, cells: new Map(), n: -1, first: null, last: null, stamp: 0, out: [] };
+function boxGrid() {
+  const n = boxes.length, g = BGRID;
+  if (g.n === n && g.first === boxes[0] && g.last === boxes[n - 1]) return g;
+  g.cells.clear();
+  for (const b of boxes) {
+    const i0 = Math.floor((b.min.x - .05) / g.S), i1 = Math.floor((b.max.x + .05) / g.S);
+    const j0 = Math.floor((b.min.z - .05) / g.S), j1 = Math.floor((b.max.z + .05) / g.S);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const k = i * 8192 + j; let c = g.cells.get(k); if (!c) g.cells.set(k, c = []); c.push(b);
+    }
+  }
+  g.n = n; g.first = boxes[0]; g.last = boxes[n - 1];
+  return g;
+}
+// the boxes that might touch the rectangle [x0, x1] x [z0, z1], each once. The array is reused by the next call.
+function boxesNear(x0, z0, x1, z1) {
+  const g = boxGrid(), S = g.S, out = g.out, st = ++g.stamp;
+  out.length = 0;
+  const i0 = Math.floor(x0 / S), i1 = Math.floor(x1 / S), j0 = Math.floor(z0 / S), j1 = Math.floor(z1 / S);
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+    const c = g.cells.get(i * 8192 + j); if (!c) continue;
+    for (let k = 0; k < c.length; k++) { const b = c[k]; if (b._bq !== st) { b._bq = st; out.push(b); } }
+  }
+  return out;
+}
+const boxesAround = (x, z, r) => boxesNear(x - r, z - r, x + r, z + r);
 function blocking(b, e) { return b.max.y > e.pos.y + (b.noStand ? .05 : STEP) && b.min.y < e.pos.y + e.height; }
 function collide(e) {
-  for (let pass = 0; pass < 2; pass++) for (const b of boxes) {
+  for (let pass = 0; pass < 2; pass++) for (const b of boxesAround(e.pos.x, e.pos.z, R + .1)) {
     if (!blocking(b, e)) continue;
     if (b.round) { // cylinder: always push straight out from the middle, even if we ended up deep inside
       const c = b.round, dx = e.pos.x - c.x, dz = e.pos.z - c.z, d = Math.hypot(dx, dz), m = c.r + R;
@@ -27,7 +59,7 @@ function collide(e) {
 }
 function groundAt(e) {
   let g = 0;
-  for (const b of boxes) {
+  for (const b of boxesAround(e.pos.x, e.pos.z, R)) {
     if (b.noStand || b.max.y > e.pos.y + STEP || b.max.y <= g) continue;
     if (e.pos.x + R * .7 < b.min.x || e.pos.x - R * .7 > b.max.x || e.pos.z + R * .7 < b.min.z || e.pos.z - R * .7 > b.max.z) continue;
     if (b.round && Math.hypot(e.pos.x - b.round.x, e.pos.z - b.round.z) > b.round.r + R * .7) continue;
@@ -36,7 +68,7 @@ function groundAt(e) {
   return g;
 }
 function canStand(e, h) {
-  for (const b of boxes) {
+  for (const b of boxesAround(e.pos.x, e.pos.z, R + .05)) {
     if (b.min.y <= e.pos.y + e.height - .02 || b.min.y >= e.pos.y + h) continue;
     if (e.pos.x + R < b.min.x || e.pos.x - R > b.max.x || e.pos.z + R < b.min.z || e.pos.z - R > b.max.z) continue;
     return false;
@@ -52,7 +84,7 @@ function moveEntity(e, wx, wz, speed, dt, accel) {
   collide(e);
   const vyBefore = e.vel.y;
   e.pos.y += e.vel.y * dt;
-  if (e.vel.y > 0) for (const b of boxes) {
+  if (e.vel.y > 0) for (const b of boxesAround(e.pos.x, e.pos.z, R + .05)) {
     if (b.min.y < e.pos.y + STEP) continue;
     if (e.pos.x + R < b.min.x || e.pos.x - R > b.max.x || e.pos.z + R < b.min.z || e.pos.z - R > b.max.z) continue;
     if (e.pos.y + e.height > b.min.y) { e.pos.y = b.min.y - e.height; e.vel.y = 0; }
@@ -67,7 +99,7 @@ function moveEntity(e, wx, wz, speed, dt, accel) {
 /* ---------- mantling: climb onto ledges and vault through windows ---------- */
 // step: boxes whose top is within this of y count as something to stand on, not an obstacle (curved roofs, stepped ledges)
 function clearAt(x, z, y, h, r = R, step = .03) {
-  for (const b of boxes) {
+  for (const b of boxesAround(x, z, r + .05)) {
     if (b.max.y <= y + step || b.min.y >= y + h) continue;
     if (x + r <= b.min.x || x - r >= b.max.x || z + r <= b.min.z || z - r >= b.max.z) continue;
     return false;
@@ -77,7 +109,7 @@ function clearAt(x, z, y, h, r = R, step = .03) {
 // highest walkable top in (y0, y1] under a small footprint
 function topAt(x, z, y0, y1, r = .06) {
   let t = -1;
-  for (const b of boxes) {
+  for (const b of boxesAround(x, z, r + .05)) {
     if (b.noMantle || b.max.y <= y0 || b.max.y > y1) continue;
     if (x + r < b.min.x || x - r > b.max.x || z + r < b.min.z || z - r > b.max.z) continue;
     if (b.max.y > t) t = b.max.y;

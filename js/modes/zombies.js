@@ -53,6 +53,9 @@ function startZombies(cfg) {
     meshes: [], boxes: [], uses: [], near: null, down: 0, invuln: 0, over: false, startRound: start,
   };
   zmBuildProps(L);
+  surfBuild();   // every surface the horde can stand on, with the props in place
+  surfField(player, player);   // and the first route to you, worked out now rather than mid-fight
+  zmPrewarm();   // build and compile everything zombies mode only makes later, so none of it stalls a round
   camera.fov = settings.fov; camera.updateProjectionMatrix();
   torch.intensity = LIGHTING.night.torch;
   showGameScreen();
@@ -63,10 +66,28 @@ function startZombies(cfg) {
   if (!netClient()) zmStartRound(start);   // a friend's window follows the host's rounds
   if (!padActive()) lockPointer();
 }
+/* The first time something new is drawn (a bloater, a hellhound's flames, a power-up), the browser stops to
+   build its model and compile its shaders, which on some machines takes a few hundred milliseconds and lands at a
+   round change. So during the loading screen, one of every kind is built, put out of sight, compiled, removed.  */
+function zmPrewarm() {
+  const g = new THREE.Group(); g.position.set(0, -400, 0);
+  try {
+    for (const kind of Object.keys(ZVARIANTS)) for (let v = 0; v < ZVARIANTS[kind]; v++) g.add(zTemplate(kind, v).clone(true));
+    g.add(buildHound().group);
+    for (const type of Object.keys(ZM_POWERUPS)) g.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: dropTexture(type), transparent: true, depthWrite: false, fog: false })));
+    g.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(80, 66, 50), transparent: true, depthWrite: false, opacity: .5 })));
+    g.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(255, 120, 40), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
+    if (typeof sparkMats !== 'undefined') for (const m of Object.values(sparkMats)) g.add(new THREE.Mesh(new THREE.BoxGeometry(.01, .01, .01), m));
+    scene.add(g);
+    renderer.compile(scene, camera);
+  } catch (e) { console.warn('prewarm', e); }
+  scene.remove(g);
+}
 function zmTeardown() {
   const Z = G.zm; if (!Z) return;
   for (const m of Z.meshes) scene.remove(m);
   for (const b of Z.boxes) { const i = boxes.indexOf(b); if (i >= 0) boxes.splice(i, 1); }
+  SURF = null;
   for (const d of Z.drops) scene.remove(d.sprite);
   rebuildNav();
   G.zm = null;
@@ -363,7 +384,7 @@ function zmSpawnZombie(kind) {
 }
 function zmUpdate(dt) {
   const Z = G.zm, p = G.player;
-  Z.budget = 3; Z.climbBudget = 1;
+  Z.budget = 2; Z.climbBudget = 1;   // at most two ground A* searches and one climb-spot search a frame
   if (Z.power.instakill > 0) Z.power.instakill -= dt;
   if (Z.power.double > 0) Z.power.double -= dt;
   if (Z.fireSaleT > 0) { Z.fireSaleT -= dt; if (Z.fireSaleT <= 0) popup('Fire Sale is over'); }
@@ -387,9 +408,11 @@ function zmHostUpdate(dt) {
     if (Z.spawnT <= 0 && zmAlive() < (Z.dogRound ? 8 : 24)) { if (zmSpawnZombie()) Z.toSpawn--; Z.spawnT = Z.dogRound ? rand(.9, 2.2) : Math.max(.35, 2.1 - Z.round * .09) * rand(.6, 1.2); }
   }
   // the undead
+  // one zombie hitting a bug must never stop the frame: everything after it (you, the screen) would freeze
   for (const z of G.ents) {
     if (!z.isZombie) continue;
-    if (z.alive) updateZombie(z, dt); else animateDead(z);
+    try { if (z.alive) updateZombie(z, dt); else animateDead(z); }
+    catch (e) { z.climb = z.leap = z.ride = null; z.braceT = 0; zmReportError(e); }
   }
   for (let i = G.ents.length - 1; i >= 0; i--) { const z = G.ents[i]; if (z.isZombie && !z.alive && G.now - z.deathT > (z.isDog || z.kind === 'bloater' ? .9 : 2.6)) { netForget(z); scene.remove(z.model.group); } }
   // round over?
@@ -441,7 +464,26 @@ function updateZombie(z, dt) {
   if (z.blindT > 0) z.blindT -= dt;
   if (z.climbCD > 0) z.climbCD -= dt;
   // hauling itself up onto a car, a crate, a porch roof...
-  if (z.climb) { if (stepMantle(z, z.climb, dt)) { poseClimb(z); return; } z.climb = null; }
+  if (z.climb) {
+    if (stepMantle(z, z.climb, dt)) {
+      poseClimb(z);
+      return;
+    }
+    // Climb finished: wipe the slate clean so it locks back onto the player
+    if (z.climb.ride) { z.ride = z.climb.ride; z.rideT = 0; }
+    z.climb = null;
+    z.cs = null;
+    z.path = null;
+    z.repathT = 0;
+    z.stuckT = 0;
+  }
+  // in mid-leap from one high place to another
+  if (z.leap) {
+    if (zmStepLeap(z, z.leap, dt)) { poseClimb(z); return; }
+    z.leap = null; z.path = null; z.cs = null; z.stuckT = 0; z.stuckPos.copy(z.pos);
+  }
+  // standing on another zombie's shoulders: stay up there and reach for the ledge
+  if (z.ride && zmRide(z, tg, dt)) return;
   let wx = 0, wz = 0, face = null;
   const chase = !!tg && !Z.over;
   const dx = p.pos.x - z.pos.x, dz = p.pos.z - z.pos.z, d = Math.hypot(dx, dz), dy = Math.abs(p.pos.y - z.pos.y), above = p.pos.y - z.pos.y;
@@ -463,7 +505,11 @@ function updateZombie(z, dt) {
     return false;
   };
   // someone just overhead with no ledge in reach (the plane's roof, a high stand): claw straight up the side
-  if (chase && !z.isDog && z.kind !== 'crawler' && above > 1.3 && d < 4.5 && !Z.over) z.belowT = (z.belowT || 0) + dt; else z.belowT = 0;
+  // someone up off the floor (a truck, a wing, a roof), or this one is: follow the surface graph instead
+  const fl = chase ? zmFlow(z, p, d, dy, reach, dt) : null;
+  if (fl === true) return;   // it just started a climb, a leap or a boost
+  if (fl) z.belowT = 0;
+  else if (chase && !z.isDog && z.kind !== 'crawler' && above > 1.3 && d < 4.5 && !Z.over) z.belowT = (z.belowT || 0) + dt; else z.belowT = 0;
   if (z.belowT > 1.4 && z.onGround) {
     z.belowT = 0;
     const bx = d > .3 ? dx : -Math.sin(z.yaw), bz = d > .3 ? dz : -Math.cos(z.yaw);
@@ -473,9 +519,10 @@ function updateZombie(z, dt) {
       if (M && M.ty > z.pos.y + .9) { M.dur = .7 + M.rise * .32; z.climb = M; z.path = null; z.circleT = 0; zombieGroan(z); poseClimb(z); return; }
     }
   }
-  if (chase) {
+  if (chase && fl) { wx = fl.wx; wz = fl.wz; if (d < 4) face = Math.atan2(-dx, -dz); }
+  if (chase && !fl) {
     // which floor: only counts as upstairs when actually over a house's upper floor (not just standing high on the truck)
-    const floorOf = e => layerAt(e.pos.y) && upstairsFloor(e.pos.x, e.pos.z) ? 1 : 0;
+    const floorOf = zmFloorLayer;
     const pl = floorOf(p), zl = floorOf(z);
     let direct = d < 1.3 && dy < 1.3;
     const onStairs = z.path && z.path[z.pi] && z.path[z.pi].portal;
@@ -518,6 +565,8 @@ function updateZombie(z, dt) {
       }
     }
     if (d < 4) face = Math.atan2(-dx, -dz);
+  }
+  if (chase) {
     // claws and teeth
     if (z.attackCD > 0) z.attackCD -= dt;
     if (z.attackT > 0) {
@@ -546,7 +595,7 @@ function updateZombie(z, dt) {
   }
   // up on something (a wing, a roof, a truck) with the one it wants up here too or higher: don't walk off the edge.
   // Slide along the edge if that's safe, otherwise stop and turn back. Dropping down is fine when the target is below.
-  if (z.onGround && z.pos.y > .4 && (wx || wz) && (!chase || above > -.8)) {
+  if (z.onGround && z.pos.y > .4 && (wx || wz) && (!chase || above > -.8) && !(fl && fl.drop)) {
     const L0 = Math.hypot(wx, wz), ux = wx / L0, uz = wz / L0, drop = (x, zz) => z.pos.y - zmFloorAt(x, zz, z.pos.y) > 1.1;
     if (drop(z.pos.x + ux * .7, z.pos.z + uz * .7)) {
       if (Math.abs(ux) > .2 && !drop(z.pos.x + Math.sign(ux) * .7, z.pos.z)) { wx = Math.sign(ux) * L0 * .8; wz = 0; }
@@ -554,6 +603,7 @@ function updateZombie(z, dt) {
       else { wx = 0; wz = 0; z.vel.x *= .3; z.vel.z *= .3; if (z.circleT > 0) z.circleDir *= -1; }
     }
   }
+  if (z.braceT > G.now) { wx = 0; wz = 0; if (d < 6) face = Math.atan2(-dx, -dz); }
   const L = Math.hypot(wx, wz); if (L > 1) { wx /= L; wz /= L; }
   const spd = (chase ? z.speed : .6) * (z.stunT > 0 ? .35 : 1) * (z.attackT > 0 ? (z.isDog ? .9 : .25) : 1) * (z.blindT > 0 ? .5 : 1);
   moveEntity(z, wx, wz, spd, dt, z.isDog ? (z.onGround ? 12 : 1.5) : 9);
@@ -576,13 +626,192 @@ function updateZombie(z, dt) {
   }
   z.groanT -= dt;
   if (z.groanT <= 0) { z.groanT = rand(3, 8); if (z.isDog) dogBark(z); else zombieGroan(z); }
-  poseZombie(z, dt);
+  if (z.braceT > G.now) poseClimb(z); else poseZombie(z, dt);
+}
+
+// a bug inside one zombie's update: reset that zombie and carry on; the stats overlay lists what went wrong
+function zmReportError(e) {
+  const msg = (e && e.message) || String(e);
+  if (zmReportError.last !== msg) { zmReportError.last = msg; console.error('zombie update', e); }
+  if (typeof PERF !== 'undefined' && PERF.on && PERF.hitches[0] !== 'ERROR ' + msg) PERF.hitches.unshift('ERROR ' + msg);
+}
+
+/* ---------- climbing after survivors who've got up onto something ---------- */
+// which floor an entity is on: upstairs only when it is actually standing on a house's (or the plane's) upper
+// floor, not on a roof above it
+function zmFloorLayer(e) {
+  const U = MAP.upper;
+  return U && layerAt(e.pos.y) && e.pos.y < U.y + 1.0 && upstairsFloor(e.pos.x, e.pos.z) ? 1 : 0;
+}
+// on a flight of stairs between the floors (the ground nav's portals cover them)
+function zmOnStairs(e) {
+  for (const P of PORTALS) {
+    const xs = P.up || [];
+    if (!xs.length) continue;
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (const q of xs) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
+    if (e.pos.x > x0 - .8 && e.pos.x < x1 + .8 && e.pos.z > z0 - .8 && e.pos.z < z1 + .8) return true;
+  }
+  return false;
+}
+// up off the floor it's on: on a truck, a wing, a roof, a crate
+function zmLifted(e) { return e.pos.y - (zmFloorLayer(e) ? MAP.upper.y : 0) > .6; }
+// plan a haul up (or a claw up a tall wall) straight onto a surface node
+function zmClimbPlan(z, N, claw, lip = N.y) {
+  const top = Math.max(lip, N.y), rise = top - z.pos.y, hx = N.x - z.pos.x, hz = N.z - z.pos.z, hl = Math.hypot(hx, hz) || 1;
+  let dur = claw ? .7 + rise * .32 : z.isDog ? .45 : z.kind === 'brute' ? 1.5 : z.runner ? .8 : 1.15;
+  if (z.kind === 'crawler') dur *= 1.5;
+  if (!claw && rise > 1.6) dur += (rise - 1.6) * .2;
+  // over a parapet or a rail onto something lower behind it: haul up to the lip, then drop in
+  return { fx: z.pos.x, fy: z.pos.y, fz: z.pos.z, tx: N.x, ty: top + .02, tz: N.z, rise, vault: top > N.y + .1, dx: hx / hl, dz: hz / hl, t: 0, dur, h: 1.15 };
+}
+// a running jump across a gap: a plain arc from one surface to the next
+function zmStepLeap(z, J, dt) {
+  J.t += dt;
+  const k = clamp(J.t / J.dur, 0, 1);
+  z.pos.set(lerp(J.fx, J.tx, k), lerp(J.fy, J.ty, k) + 4 * J.arc * k * (1 - k), lerp(J.fz, J.tz, k));
+  z.vel.set(0, 0, 0); z.yaw = Math.atan2(-(J.tx - J.fx), -(J.tz - J.fz));
+  if (k >= 1) { z.pos.set(J.tx, J.ty, J.tz); z.onGround = true; return false; }
+  return true;
+}
+/* Follow the surface graph towards p. Returns null when the ordinary ground AI should drive (nobody is up off
+   the floor), true when the zombie has just started a climb, leap or boost, or { wx, wz, drop } to walk.     */
+function zmFlow(z, p, d, dy, reach, dt) {
+  // (a zombie partway up a staircase is the ground AI's business: it is following the stairs to you)
+  const onStairs = z.path && z.path[z.pi] && z.path[z.pi].portal;
+  if (!zmLifted(p) && (!zmLifted(z) || onStairs || zmOnStairs(z))) return null;
+  if (d < reach + .1 && dy < 1.3) return { wx: 0, wz: 0 };            // close enough to swing at you
+  if (!z.onGround) return { wx: 0, wz: 0 };
+  const F = surfField(p, p);
+  // which node it's on: only looked up again once it has moved a little
+  if (z.snS !== SURF || Math.abs(z.snX - z.pos.x) > .2 || Math.abs(z.snZ - z.pos.z) > .2 || Math.abs(z.snY - z.pos.y) > .2) {
+    z.sn = surfNodeAt(z.pos.x, z.pos.y, z.pos.z, .6, .8); z.snS = SURF; z.snX = z.pos.x; z.snY = z.pos.y; z.snZ = z.pos.z;
+  }
+  const a = z.sn;
+  if (a < 0) return null;
+  const S = SURF, A = S.nodes[a], nx = surfNext(F, a);
+  if (!nx) {
+    // as close as the map allows and you're still out of reach: last resort, climb up another zombie
+    const hx = p.pos.x - z.pos.x, hz = p.pos.z - z.pos.z, hd = Math.hypot(hx, hz);
+    if (p.pos.y - z.pos.y > 1.3 && hd < 4.5 && z.climbCD <= 0) {
+      z.climbCD = .5;
+      if (zmGrabToward(z, p)) return true;
+      if (!z.isDog && zmBoost(z, p)) return true;
+    }
+    // otherwise shuffle in under you and wait for others to pile in
+    return hd > .6 ? { wx: hx / hd, wz: hz / hd } : { wx: 0, wz: 0 };
+  }
+  const [b, type, , lip] = nx, N = S.nodes[b], hx = N.x - z.pos.x, hz = N.z - z.pos.z, hd = Math.hypot(hx, hz) || 1;
+  if (type === EDGE.climb || type === EDGE.claw) {
+    // get right up against it first, or give up pushing after a moment and climb from here
+    z.flowPush = hd > 1.0 ? (z.flowPush || 0) + dt : 0;
+    if ((hd <= 1.0 || z.flowPush > .6) && z.climbCD <= 0) {
+      z.flowPush = 0; z.climbCD = .3;
+      z.climb = zmClimbPlan(z, N, type === EDGE.claw, lip); z.path = null; z.cs = null; zombieGroan(z); poseClimb(z);
+      return true;
+    }
+    return { wx: hx / hd, wz: hz / hd };
+  }
+  if (type === EDGE.leap) {
+    const L = Math.hypot(N.x - A.x, N.z - A.z);
+    z.leap = { fx: z.pos.x, fy: z.pos.y, fz: z.pos.z, tx: N.x, ty: N.y + .02, tz: N.z, t: 0, dur: .32 + L * .12, arc: .55 + Math.max(0, N.y - z.pos.y) * .6 };
+    zombieAttack(z); poseClimb(z);
+    return true;
+  }
+  if (type === EDGE.drop) return { wx: hx / hd, wz: hz / hd, drop: true };
+  // walking: aim a few nodes down the route so it doesn't zig-zag cell to cell
+  let tgt = N, cur = b;
+  for (let k = 0; k < 4; k++) {
+    const q = surfNext(F, cur); if (!q || q[1] !== EDGE.walk) break;
+    cur = q[0]; tgt = S.nodes[cur];
+  }
+  const tx = tgt.x - z.pos.x, tz = tgt.z - z.pos.z, tl = Math.hypot(tx, tz) || 1;
+  return { wx: tx / tl, wz: tz / tl };
+}
+// at a dead end of the graph (a thin perch it can't see, like a fin or a rail): look for any real ledge, straight
+// at the target or off to the sides, that gets it higher and no further away
+function zmGrabToward(z, p) {
+  const dx = p.pos.x - z.pos.x, dz = p.pos.z - z.pos.z, d0 = Math.hypot(dx, dz);
+  if (d0 < .05) return false;
+  for (const a of [0, .45, -.45, .9, -.9, 1.5, -1.5]) {
+    const c = Math.cos(a), sn = Math.sin(a);
+    const M = findMantle(z, dx * c - dz * sn, dx * sn + dz * c, Math.min(SURF_CLAW, p.pos.y - z.pos.y + .9), z.kind === 'brute' ? 1.5 : 1.15);
+    if (!M || M.ty < z.pos.y + .45 || Math.hypot(p.pos.x - M.tx, p.pos.z - M.tz) > d0 + .3) continue;
+    M.dur = M.rise > SURF_CLIMB ? .7 + M.rise * .32 : z.runner ? .8 : 1.15;
+    z.climb = M; z.path = null; z.cs = null; zombieGroan(z); poseClimb(z);
+    return true;
+  }
+  return false;
+}
+// last resort: scramble up onto a neighbour's shoulders (who braces), then reach for the ledge from up there
+function zmBoost(z, p) {
+  let best = null, bd = 1.7;
+  for (const q of G.ents) {
+    if (q === z || !q.isZombie || !q.alive || q.isDog || q.climb || q.leap || q.riseT > 0) continue;
+    if (q.ride === z) continue;
+    let n = 1; for (let r = q.ride; r; r = r.ride) n++;
+    if (n >= 3) continue;                                              // no more than three high
+    const top = q.pos.y + q.height - .1, hd = Math.hypot(q.pos.x - z.pos.x, q.pos.z - z.pos.z);
+    if (top - z.pos.y < .8 || top - z.pos.y > 2.3 || hd > bd) continue;
+    if (!q.onGround && !q.ride) continue;
+    bd = hd; best = q;
+  }
+  if (!best) return false;
+  const q = best, M = zmClimbPlan(z, { x: q.pos.x, y: q.pos.y + q.height - .1, z: q.pos.z }, false);
+  M.dur = .75; M.ride = q;
+  z.climb = M; z.path = null; z.cs = null; q.braceT = G.now + 2.5; zombieGroan(z); poseClimb(z);
+  return true;
+}
+// riding on a brace: keep its feet on the brace's shoulders and look for a ledge that gets closer to the target
+function zmRide(z, tg, dt) {
+  const q = z.ride;
+  if (!q || !q.alive || q.leap || q.climb || !tg || G.zm.over) { z.ride = null; z.onGround = false; return false; }
+  q.braceT = G.now + .4;
+  z.pos.set(q.pos.x, q.pos.y + q.height - .1, q.pos.z); z.vel.set(0, 0, 0); z.onGround = true;
+  z.rideT = (z.rideT || 0) + dt;
+  const dx = tg.pos.x - z.pos.x, dz = tg.pos.z - z.pos.z, d = Math.hypot(dx, dz), dy = Math.abs(tg.pos.y - z.pos.y);
+  z.yaw = wrap(z.yaw + clamp(wrap(Math.atan2(-dx, -dz) - z.yaw), -5 * dt, 5 * dt));
+  // close enough to swing from up here
+  const reach = z.kind === 'brute' ? 1.5 : 1.2;
+  if (d < reach + .35 && dy < 1.3) {
+    if (z.attackCD > 0) z.attackCD -= dt;
+    if (z.attackT > 0) { z.attackT -= dt; if (z.attackT <= 0) { z.attackCD = .45; applyDamage(tg, z, (z.runner ? 50 : ZKINDS[z.kind].dmg) * G.zm.diff.dmg, false, 'claw'); } }
+    else if (z.attackCD <= 0) { z.attackT = .55; zombieAttack(z); }
+    poseClimb(z); return true;
+  }
+  // a ledge within reach from up here that brings it nearer: haul up onto it
+  if (z.rideT > .35) {
+    const S = surfReady(), F = surfField(tg, tg), here = surfNodeAt(q.pos.x, q.pos.y, q.pos.z, .6, .8);
+    const base = here >= 0 ? F.cost[here] : Infinity;
+    let best = -1, bc = base;
+    const ci = Math.round((z.pos.x - S.x0) / SURF_CELL), cj = Math.round((z.pos.z - S.z0) / SURF_CELL);
+    for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) {
+      const i = ci + di, j = cj + dj; if (i < 0 || j < 0 || i >= S.nx || j >= S.nz) continue;
+      for (const k of S.cols[j * S.nx + i]) {
+        const N = S.nodes[k], up = N.y - z.pos.y;
+        if (N.nm || up < -.3 || up > SURF_CLAW || F.cost[k] >= bc) continue;
+        if (Math.hypot(N.x - z.pos.x, N.z - z.pos.z) > 1.6) continue;
+        bc = F.cost[k]; best = k;
+      }
+    }
+    if (best >= 0) {
+      const N = S.nodes[best];
+      z.ride = null; z.rideT = 0;
+      z.climb = zmClimbPlan(z, N, N.y - z.pos.y > SURF_CLIMB); zombieGroan(z); poseClimb(z);
+      return true;
+    }
+  }
+  if (z.rideT > .6 && z.climbCD <= 0) { z.climbCD = .4; const q0 = z.ride; z.ride = null; if (zmGrabToward(z, tg)) { z.rideT = 0; return true; } z.ride = q0; }
+  // nothing to grab: give it a few seconds, then hop down
+  if (z.rideT > 3.5) { z.ride = null; z.rideT = 0; z.onGround = false; return false; }
+  poseClimb(z);
+  return true;
 }
 
 // height of whatever could be stood on at (x, z), at or below y + a step (0 for the ground)
 function zmFloorAt(x, z, y) {
   let g = 0; const r = .22;
-  for (const b of boxes) {
+  for (const b of boxesAround(x, z, r + .05)) {
     if (b.noStand || b.max.y > y + STEP || b.max.y <= g) continue;
     if (x + r < b.min.x || x - r > b.max.x || z + r < b.min.z || z - r > b.max.z) continue;
     if (b.round && Math.hypot(x - b.round.x, z - b.round.z) > b.round.r + r) continue;

@@ -40,6 +40,8 @@ const slider = (label, key, min, max, step, fmt, desc) => ({
   value: () => { const v = settings[key], k = Math.round((v - min) / (max - min) * 10); return `<span class="seg10">${Array.from({ length: 10 }, (_, i) => `<i class="${i < k ? 'on' : ''}"></i>`).join('')}</span>${fmt(v)}`; },
   change: d => { settings[key] = +clamp(settings[key] + d * step, min, max).toFixed(3); saveSettings(); if (key === 'vol' && master) master.gain.value = settings.vol; if (key === 'music') musicVolume(); },
 });
+// anti-aliasing can only change when the game reloads, so say so when the saved choice differs from what's running
+const aaLabel = () => (settings.aa !== false ? 'On' : 'Off') + ((settings.aa !== false) !== AA_AT_START ? ' (on reload)' : '');
 function screenDef(id) {
   const S = settings;
   if (id === 'main') return {
@@ -101,6 +103,10 @@ function screenDef(id) {
       { label: 'Squad callouts', kind: 'choice', value: () => S.callouts !== false ? 'On' : 'Off', change: () => { S.callouts = S.callouts === false; }, desc: 'Teammates near you call contacts, reloads, grenades and kills over the radio.' },
       { label: 'Kill cams', kind: 'choice', value: () => S.killcam !== false ? 'On' : 'Off', change: () => { S.killcam = S.killcam === false; }, desc: 'Replay your death from the killer\'s eyes.' },
       { label: 'Fullscreen', kind: 'choice', value: () => isFullscreen() ? 'On' : 'Off', change: () => toggleFullscreen(), desc: fullscreenNote() },
+      { label: 'Shadows', kind: 'choice', sep: true, value: () => S.shadows !== false ? 'On' : 'Off', change: () => { S.shadows = S.shadows === false; applyShadows(); }, desc: 'Sun shadows from buildings, players and props. Turn off to save video memory on consoles and older machines.' },
+      { label: 'Anti-aliasing', kind: 'choice', value: () => aaLabel(), change: () => { S.aa = S.aa === false; }, desc: 'Smooths jagged edges. Takes effect the next time the game loads. Turn off on Xbox.' },
+      { label: 'Resolution', kind: 'choice', value: () => S.res === 'low' ? 'Low' : 'Native', change: () => { S.res = S.res === 'low' ? 'native' : 'low'; applyResolution(); }, desc: 'Native renders at your screen\u2019s sharpness. Low renders one pixel per pixel, which is much lighter on the graphics card.' },
+      { label: 'Performance stats', kind: 'choice', value: () => S.perf ? 'On' : 'Off', change: () => { S.perf = !S.perf; perfOn(S.perf); }, desc: 'Shows the frame rate and what each part of the game costs, and lists every hitch with its cause. Handy for tracking down stutter.' },
       { label: 'Switch player', desc: `Playing as ${esc(S.profile.name)}. Pick another saved profile or start a new one.`, act: () => go('who') },
       { label: 'Controls', sep: true, desc: 'Keyboard, mouse and controller layouts.', act: () => go('controls') },
     ],

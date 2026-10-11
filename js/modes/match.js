@@ -141,6 +141,10 @@ function pauseOptRows() {
     tog('Kill cams', () => S.killcam !== false ? 'On' : 'Off', () => { S.killcam = S.killcam === false; }),
     tog('Controller', () => padLabel(), d => cyclePadPref(d)),
     tog('Fullscreen', () => isFullscreen() ? 'On' : 'Off', () => toggleFullscreen()),
+    tog('Shadows', () => S.shadows !== false ? 'On' : 'Off', () => { S.shadows = S.shadows === false; applyShadows(); }),
+    tog('Anti-aliasing', () => aaLabel(), () => { S.aa = S.aa === false; }),
+    tog('Resolution', () => S.res === 'low' ? 'Low' : 'Native', () => { S.res = S.res === 'low' ? 'native' : 'low'; applyResolution(); }),
+    tog('Performance stats', () => S.perf ? 'On' : 'Off', () => { S.perf = !S.perf; perfOn(S.perf); }),
   ];
 }
 function renderPauseOpts() {

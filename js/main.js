@@ -7,6 +7,7 @@ loadMap(settings.map, 'day');
 let last = nowMs(), menuT = 0, hudT = 0, annT = 1;
 function frame(tMs) {
   requestAnimationFrame(frame); // first, so one bad frame can't stop the game
+  perfBegin(tMs);
   const dt = clamp((tMs - last) / 1000, 0, .05); last = tMs;
   if (G.state === 'menu' || G.state === 'ended') {
     menuT += dt * .06;
@@ -25,6 +26,7 @@ function frame(tMs) {
     if (IN.pauseP && !G.ended && !paused) pauseGame();
     G.now += sdt;
     if (!G.ended && !netClient()) G.timeLeft -= sdt;
+    perfMark('input');
     if (G.zm) zmUpdate(sdt);
     else {
       for (const e of G.ents) {
@@ -35,12 +37,15 @@ function frame(tMs) {
       }
       updateDrops();
     }
+    perfMark(G.zm ? 'zombies' : 'bots');
     updateProj(sdt);
     updateBurns(sdt);
     updateSmokes(sdt);
     if (!G.kc) updatePuffs(sdt);
+    perfMark('fx');
     if (!G.kc) updatePlayer(sdt);
     else { const p = G.player; if (!p.alive) { p.respawnT = Math.max(p.respawnT - sdt, .5); animateDead(p); } else if (p.model) poseSoldier(p, sdt, true, false); }
+    perfMark('player');
     if (!G.zm) updateTags(sdt);
     updateDamageEls(realDt);
     if ((G.state === 'playing' || paused || G.kc) && !G.zm) recordFrame();
@@ -63,6 +68,7 @@ function frame(tMs) {
   flashLight.intensity = Math.max(0, flashLight.intensity - dt * (flashLight.intensity > 2 ? 18 : 40));
   updateFx(dt);
   if (MAP.tick) MAP.tick(dt, MAP.state);
+  perfMark('hud');
   renderer.clear();
   renderer.render(scene, camera);
   const p = G.player;
@@ -71,9 +77,14 @@ function frame(tMs) {
     renderer.clearDepth();
     renderer.render(vmScene, vmCamera);
   }
+  perfMark('render');
+  perfGpu(); perfMark('gpu wait');
   renderPreview(dt);
   musicTick();
   padsTick();
   netTick(dt);
+  perfMark('net/audio');
+  perfEnd();
 }
+perfOn(settings.perf);
 requestAnimationFrame(frame);

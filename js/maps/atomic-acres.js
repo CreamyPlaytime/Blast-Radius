@@ -212,6 +212,11 @@ function buildAtomicAcres() {
   addBox(-38.6, 0, 26, 38.6, 2.8, 26.6, WC, { tex: 'block' });
   addBox(-38.6, 0, -26, -38, 2.8, 26, WC, { tex: 'block' });
   addBox(38, 0, -26, 38.6, 2.8, 26, WC, { tex: 'block' });
+  // out-of-bounds: tall invisible walls over the outer block wall and a metre beyond it, so nobody can stand on the
+  // perimeter or clear it by jumping off the sheds and houses. The sheds themselves stay open to climb and stand on.
+  const OOB_H = 40;
+  invisWall(-39.6, -27.6, 39.6, -26, OOB_H); invisWall(-39.6, 26, 39.6, 27.6, OOB_H);
+  invisWall(-39.6, -26, -38, 26, OOB_H); invisWall(38, -26, 39.6, 26, OOB_H);
   for (let x = -36; x <= 36; x += 6) { deco(x - .3, 0, -26.7, x + .3, 3.05, -25.85, 0x8E826D, { tex: 'block' }); deco(x - .3, 0, 25.85, x + .3, 3.05, 26.7, 0x8E826D, { tex: 'block' }); }
   signPlane('ATOMIC ACRES', 'TEST SITE 7 \u00B7 AREA 4 \u00B7 POP. 0', 9, 1.75, -25.95, 5.2, 1.6);
   signPlane('CIVIL DEFENSE', 'SHELTER IN PLACE WHEN SIRENS SOUND', -12, 1.75, 25.95, 5.2, 1.6, Math.PI);
