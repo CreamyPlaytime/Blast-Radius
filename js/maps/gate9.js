@@ -55,6 +55,9 @@ function buildGate9() {
   for (const [a, b] of segs) { deco(a, 6, -19.15, b, 6.35, 19.15, 0xE6E2DA, { tex: 'plaster' }); for (let z = -16; z <= 16; z += 8) { const p = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(2.4, b - a - .6), 1.2), new THREE.MeshBasicMaterial({ color: 0xFFF6E4 })); p.rotation.x = Math.PI / 2; p.position.set((a + b) / 2, 5.98, z); WORLD.add(p); } }
   for (const [a, b] of [[-26, -24], [-20, -18], [-14, -12], [-8, -6]]) { const g = new THREE.Mesh(new THREE.PlaneGeometry(b - a, 38.3), glassMat); g.rotation.x = Math.PI / 2; g.position.set((a + b) / 2, 6.3, 0); WORLD.add(g); for (let z = -18; z <= 18; z += 3) deco(a, 6.2, z - .06, b, 6.35, z + .06, metal, { cast: false }); }
   deco(T0 - .3, 6.35, -19.3, .3, 7, -18.9, 0x8E8A82); deco(T0 - .3, 6.35, 18.9, .3, 7, 19.3, 0x8E8A82); deco(T0 - .3, 6.35, -19.3, T0 + .1, 7, 19.3, 0x8E8A82); deco(-.1, 6.35, -19.3, .3, 7, 19.3, 0x8E8A82);
+  // the roof is solid to walk on (skylight glass included), and the parapet round its edge stops you walking off
+  { const rf = addBox(T0 - .15, 6, -19.15, .15, 6.35, 19.15, 0, { noMesh: true }); rf.noMantle = false; }
+  for (const [x1, z1, x2, z2] of [[T0 - .3, -19.3, .3, -18.9], [T0 - .3, 18.9, .3, 19.3], [T0 - .3, -19.3, T0 + .1, 19.3], [-.1, -19.3, .3, 19.3]]) addBox(x1, 6.35, z1, x2, 7, z2, 0, { noMesh: true });
   g9Sign('GATE 9', -1.2, 4.6, 0, 3.2, .8, -Math.PI / 2);
   g9Sign('9  \u25C0  GATES 1-8', -14, 5.2, -18.84, 4, .6, 0);
   g9Sign('BAGGAGE  \u25B6', -20, 5.2, 18.84, 3, .6, Math.PI);
@@ -184,6 +187,51 @@ function buildGate9() {
     addBox(19 - .25, 0, P.cx + sd * 1.5 - .25, 19 + .25, 2.2, P.cx + sd * 1.5 + .25, 0x6E6A64);
     for (const dx of [-.45, .45]) { const w = cyl(.5, .35, 19 + dx, .5, P.cx + sd * 1.5, 0x1E2124, 14); w.rotation.x = Math.PI / 2; }
   }
+  // ----- airframe collision: you could jump your head up into the belly, and walk through the wings -----
+  // the hull's underside, in thin bands that follow the curve, from the belly up to the cabin floor
+  const belly = (xa, xb, yc, rad, top = 2.95) => {
+    for (let y = yc - rad; y < top - .01; y += .18) {
+      const y1 = Math.min(top, y + .18), ym = Math.min(y1, Math.max(y, yc)), h = Math.sqrt(Math.max(0, rad * rad - (yc - ym) * (yc - ym)));
+      if (h > .05) { const b = addBox(xa, y, P.cx - h, xb, y1, P.cx + h, 0, { noMesh: true }); b.noMantle = true; }
+    }
+  };
+  belly(P.x0, P.x1, P.cy, P.r);
+  // under the nose (an ellipsoid stretched 1.7x along the fuselage)
+  for (let x = P.x0 - 1.7 * P.r + .15; x < P.x0; x += .35) { const dx = (Math.min(P.x0, x + .35) + x) / 2 - P.x0, rr = P.r * Math.sqrt(Math.max(0, 1 - (dx / (1.7 * P.r)) ** 2)); belly(x, Math.min(P.x0, x + .35), P.cy, rr); }
+  // the top of the hull, so you can stand on the plane: thin bands following the curve, widest edge of each band,
+  // from just above the overhead bins (cabin headroom stays clear) up to the crown
+  const roof = (xa, xb, yc, rad, y0) => {
+    for (let y = y0; y < yc + rad - .01; y += .15) {
+      const y1 = Math.min(yc + rad, y + .15), yw = Math.max(y, Math.min(y1, yc)), h = Math.sqrt(Math.max(0, rad * rad - (yc - yw) * (yc - yw)));
+      if (h > .05) addBox(xa, y, P.cx - h, xb, y1, P.cx + h, 0, { noMesh: true });
+    }
+  };
+  roof(P.x0, P.x1, P.cy, P.r, 6.0);
+  // over the cockpit (its walls stop at 5.6), and the solid tip of the nose ahead of it
+  for (let x = P.x0 - 1.7 * P.r + .15; x < P.x0; x += .35) {
+    const xb = Math.min(P.x0, x + .35), dx = (x + xb) / 2 - P.x0, rr = P.r * Math.sqrt(Math.max(0, 1 - (dx / (1.7 * P.r)) ** 2));
+    roof(x, xb, P.cy, rr, x < 6.3 ? 2.95 : 5.65);   // 6.3: where the cockpit walls start
+  }
+  // the tail cone narrows and sweeps up; nobody can get inside it, so it's solid all the way through
+  for (let x = P.x1; x < P.x1 + 5 - .01; x += .4) { const t = (x + .2 - P.x1) / 5, rad = P.r + (.55 - P.r) * t, yc = P.cy + 1.3 * t; roof(x, Math.min(P.x1 + 5, x + .4), yc, rad, yc - rad); }
+  // the fin, stepped up its swept leading and trailing edges
+  for (let k = 0; k < 8; k++) {
+    const y0 = k / 8 * 5.2, y1 = (k + 1) / 8 * 5.2, ym = (y0 + y1) / 2;
+    addBox(P.x1 + .3 + 3.6 * ym / 5.2, P.cy + 1.8 + y0, P.cx - .14, P.x1 + .3 + 4.4 + 1.0 * ym / 5.2, P.cy + 1.8 + y1, P.cx + .14, 0, { noMesh: true });
+  }
+  // main wings: low and swept, so solid slabs stepped along the span (you can stand on them too)
+  for (const sd of [-1, 1]) for (let k = 0; k < 14; k++) {
+    const s0 = k / 14 * 14.2, s1 = (k + 1) / 14 * 14.2, sm = (s0 + s1) / 2;
+    const le = 15 + 6.6 * sm / 14.2, te = 15 + 6.2 + (6.6 + 1.6 - 6.2) * sm / 14.2;
+    const za = P.cx + sd * (1.2 + s0), zb = P.cx + sd * (1.2 + s1);
+    const b = addBox(le, 2.4, Math.min(za, zb), te, 2.66, Math.max(za, zb), 0, { noMesh: true }); b.noMantle = k > 9;
+  }
+  // tailplanes, up out of reach, but they still stop grenades and bullets
+  for (const sd of [-1, 1]) for (let k = 0; k < 4; k++) {
+    const s0 = k / 4 * 4.2, s1 = (k + 1) / 4 * 4.2, sm = (s0 + s1) / 2, x0 = P.x1 + 1.4;
+    const le = x0 + 2.2 * sm / 4.2, te = x0 + 2.6 + (3.3 - 2.6) * sm / 4.2, za = P.cx + sd * (.5 + s0), zb = P.cx + sd * (.5 + s1);
+    addBox(le, P.cy + 1.0, Math.min(za, zb), te, P.cy + 1.14, Math.max(za, zb), 0, { noMesh: true });
+  }
   // nose gear
   addBox(8.4, 0, P.cx - .2, 8.8, 2.3, P.cx + .2, 0x6E6A64);
   for (const dz of [-.25, .25]) { const w = cyl(.38, .22, 8.6, .38, P.cx + dz, 0x1E2124, 12); w.rotation.x = Math.PI / 2; }
@@ -250,7 +298,16 @@ function buildGate9() {
   // airstairs at both doors
   for (const d of P.doors) {
     stairs('z', -4.2, P.cx - 2.4, d - .7, d + .7, P.floor, 0xD8D8D0, 'diamond');
-    for (const s of [-1, 1]) { beam([d + s * .74, 1.05, -4.2], [d + s * .74, P.floor + 1.05, P.cx - 2.4], .06, 0xB8BCC0); beam([d + s * .74, 0, -4.2], [d + s * .74, 1.05, -4.2], .06, 0xB8BCC0); { const rb = addBox(d + s * .74 - .04, 0, -4.2, d + s * .74 + .04, P.floor + 1.6, P.cx - 2.4, 0, { noMesh: true }); rb.ghost = true; rb.noMantle = true; } }   // keeps you on the stairs, but bullets pass
+    for (const s of [-1, 1]) {
+      beam([d + s * .74, 1.05, -4.2], [d + s * .74, P.floor + 1.05, P.cx - 2.4], .06, 0xB8BCC0); beam([d + s * .74, 0, -4.2], [d + s * .74, 1.05, -4.2], .06, 0xB8BCC0);
+      // the handrail as stepped collision along its slope: it keeps you on the stairs, but you can hop up onto it and
+      // tightrope to the top, then jump for the roof of the plane from there. Bullets pass.
+      const n = 13, z0r = -4.2, z1r = P.cx - 2.4;
+      for (let k = 0; k < n; k++) {
+        const za = z0r + (z1r - z0r) * k / n, zb = z0r + (z1r - z0r) * (k + 1) / n, top = 1.05 + P.floor * (k + .5) / n;
+        const rb = addBox(d + s * .74 - .08, Math.max(0, top - 1.05), za, d + s * .74 + .08, top, zb, 0, { noMesh: true }); rb.ghost = true;
+      }
+    }
     deco(d - .9, 0, -4.4, d + .9, .3, -4.2, 0x3A3E44);
   }
 
@@ -272,6 +329,8 @@ function buildGate9() {
       // walls: collide with movement, but they are mostly glass, so bullets and eyes pass
       for (let k = 0; k < n; k++) { const top = rise * (k + 1); const w = addBox(X0 + k * run, Math.max(0, top - .32), zw - .06, X0 + (k + 1) * run, top + H, zw + .06, 0, { noMesh: true }); w.invis = true; w.noMantle = true; }
     }
+    // the roof of the sloped tube: shallow steps that follow its slope, so you can walk up the top of it (and not fall in)
+    for (let k = 0; k < n; k++) { const yr = rise * (k + .5) + H + .15; addBox(X0 + k * run, yr - .3, z0 - .15, X0 + (k + 1) * run, yr, z1 + .15, 0, { noMesh: true }); }
     for (let k = 1; k < 6; k++) { const x = X0 + (X1 - X0) * k / 6, y = P.floor * k / 6; deco(x - .06, y, z0 - .2, x + .06, y + H + .15, z0 - .1, bd, { cast: false }); deco(x - .06, y, z1 + .1, x + .06, y + H + .15, z1 + .2, bd, { cast: false }); }
     { const l = new THREE.Mesh(new THREE.PlaneGeometry(L - .4, .2), new THREE.MeshBasicMaterial({ color: 0xFFF6E4, side: THREE.DoubleSide })); l.position.set(mx, my + H - .02, (z0 + z1) / 2); l.rotation.x = Math.PI / 2; l.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), ang); WORLD.add(l); }
     // rotunda on a drive column
@@ -301,7 +360,17 @@ function buildGate9() {
     addBox(d - .84, P.floor + H, TZ0 + .3, d + .84, P.floor + H + .12, RZ0, bc, { tex: 'metal' });
     // accordion canopy: rings of black rubber around the doorway
     for (let k = 0; k < 5; k++) { const zz = TZ0 + .05 + k * .07, c = k % 2 ? 0x1E2124 : 0x2A2D31; deco(d - .9, P.floor - .05, zz, d - .72, P.floor + H + .15, zz + .04, c, { cast: false }); deco(d + .72, P.floor - .05, zz, d + .9, P.floor + H + .15, zz + .04, c, { cast: false }); deco(d - .9, P.floor + H - .02, zz, d + .9, P.floor + H + .15, zz + .04, c, { cast: false }); deco(d - .9, P.floor - .05, zz, d + .9, P.floor - .01, zz + .04, c, { cast: false }); }
-    g9Sign('GATE 9 \u00B7 NORTHFIELD AIR', mx, my + H + .35, z0 - .23, 5, .5, Math.PI);
+    // the sign runs along the side of the bridge at the same slope, on the solid band under the roof, clear of the posts
+    { const sg = g9Sign('GATE 9 \u00B7 NORTHFIELD AIR', mx, my + 2.25, z0 - .25, 4.6, .42, Math.PI); sg.rotateOnWorldAxis(new THREE.Vector3(0, 0, 1), ang); }
+    // where the bridge meets the terminal: a collar against the glass so there are no gaps around the sloped tube
+    {
+      const fc = 0x5E6670, xa = .15, xb = .55, za = z0 - .3, zb = z1 + .3, top = H + .45;
+      deco(xa, 0, za, xb, top, z0 - .02, fc); deco(xa, 0, z1 + .02, xb, top, zb, fc);           // sides
+      deco(xa, H - .08, za, xb, top, zb, fc);                                                         // header
+      deco(xa, -.02, za, xb, .06, zb, fc, { cast: false });                                          // threshold
+      for (let k = 0; k < 4; k++) { const zz = za + .02 + k * .06, c = k % 2 ? 0x1E2124 : 0x2A2D31; deco(xb, 0, zz, xb + .04, top - .05, zz + .04, c, { cast: false }); deco(xb, 0, zb - .06 - k * .06, xb + .04, top - .05, zb - .02 - k * .06, c, { cast: false }); }
+      const cb = addBox(xa, H - .08, za, xb, top, zb, 0, { noMesh: true }); cb.noMantle = true;
+    }
   }
 
   // ---------- apron: vehicles and cargo ----------
@@ -333,15 +402,41 @@ function buildGate9() {
   cyl(2.2, 26, 30, 13, -56, 0xD8D4CC, 12); cyl(4.4, 4, 30, 28, -56, 0x5E8AA8, 12, { r2: 3.4 }); deco(26, 30, -60, 34, 30.6, -52, 0x3A3E44);
   for (const [x, z] of [[90, -40], [110, 60]]) { const pl = new THREE.Group(); const b = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 26, 12), mat(0xEDEDEA)); b.rotation.x = Math.PI / 2; pl.add(b); const w = new THREE.Mesh(new THREE.BoxGeometry(28, .3, 4), mat(0xDADAD6)); pl.add(w); pl.position.set(x, 2.6, z); WORLD.add(pl); }
 }
+
+/* ---------- zombies layout: the terminal after the last flight ---------- */
+// start in the gate lounge; the dead come in from the back of the terminal and over the apron fences
+const GATE9_ZOMBIES = {
+  start: { x: -7, z: 0, yaw: -Math.PI / 2 },
+  spawns: [
+    [-28.8, -6], [-28.8, 6], [-20, -18.2], [-20, 18.2], [-3, -18.3], [-3, 18.3],
+    [12, -18.3], [20, -18.3], [31.8, -12], [31.8, 0], [31.8, 10], [20, 18.3],
+  ],
+  walls: [
+    { key: 'mp',      cost: 750,  x: -16,    y: 1.55, z: -18.83, n: [0, 1] },
+    { key: 'smg',     cost: 1000, x: -14,    y: 1.55, z: 18.83,  n: [0, -1] },
+    { key: 'shotgun', cost: 1500, x: -29.83, y: 1.55, z: 0,      n: [1, 0] },
+    { key: 'ar',      cost: 1400, x: -24,    y: 1.55, z: -18.83, n: [0, 1] },
+    { key: 'lmg',     cost: 2500, x: 3.4,    y: 1.45, z: 11.98,  n: [0, -1] },
+  ],
+  box: { x: -17, z: -8, rot: 0 },
+  pap: { x: 26, z: -6, n: [-1, 0] },
+  perks: [
+    { key: 'ironhide',   x: -18,    y: 0, z: 18.45,  n: [0, -1] },
+    { key: 'fasthands',  x: -11,    y: 0, z: -18.45, n: [0, 1] },
+    { key: 'secondwind', x: -29.47, y: 0, z: -5,     n: [1, 0] },
+    { key: 'rapidround', x: .55,    y: 0, z: 5,      n: [1, 0] },
+  ],
+};
 MAPS.gate9 = {
-  name: 'Gate 9', sub: 'Northfield International', build: buildGate9,
+  name: 'Gate 9', sub: 'Northfield International', build: buildGate9, zombies: GATE9_ZOMBIES,
   desc: 'A departure lounge and the airliner parked outside. Hold the glass, take the jet bridge onto the plane, or fight down the aisle to the open cockpit.',
   bounds: [-29.4, 32.4, -18.4, 18.4], center: [2, 0], coreR: 18, orbit: { r: 42, h: 20 },
   upper: { y: G9.floor, rects: [[G9.x0 + .3, G9.x1 - .1, G9.cx - 2.2, G9.cx + 2.2], [6.9, G9.x0 + .3, G9.cx - .9, G9.cx + .9], [G9.rampX + .1, 14.5, 6.7, G9.bz1], [G9.bridgeDoor - .65, G9.bridgeDoor + .65, G9.cx + 2.1, 6.8]] },
   portals: [...G9.doors.map(d => ({ g: [d, -5.5], u: [d, 2.5], up: [[d, -5.0], [d, -3.9], [d, -.05], [d, 2.0]] })),
     { g: [-1.5, 9.5], u: [10.5, 9.5], cost: 12, up: [[-.9, 9.5], [.5, 9.5], [G9.rampX - .3, 9.5], [9.8, 9.5]] }],
   spawns: { A: [-29, -27, -17, 17], B: [27, 32, -17, 17] },
-  lighting: { day: { fog: [0xC9D3DA, 55, 240], hemi: [0xDDE8F0, 0x8A8478, .72], amb: .16, sun: [0xFFF0D8, .95, 40, 50, -30], torch: 0 } },
+  lighting: { day: { fog: [0xC9D3DA, 55, 240], hemi: [0xDDE8F0, 0x8A8478, .72], amb: .16, sun: [0xFFF0D8, .95, 40, 50, -30], torch: 0 },
+    night: { fog: [0x0B121A, 12, 70], hemi: [0x5A6E8A, 0x1A1712, .3], amb: .08, sun: [0x9DB4FF, .3, 40, 50, -30], torch: 1.7 } },
   mini: {
     bg: '#34373a', draw(x, X, Z, S) {
       x.fillStyle = '#5f5c56'; x.fillRect(X(-30), Z(-19), 30 * S, 38 * S);

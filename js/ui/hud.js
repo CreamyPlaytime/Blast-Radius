@@ -92,7 +92,7 @@ function updateHud() {
   }
   if (sb !== lastHud) { $('#scorebar').innerHTML = sb; lastHud = sb; }
   const am = w.am && w.ammoT !== 'std' ? w.am.short : '';
-  const wn = w.glMode ? `40mm grenade launcher \u00B7 on ${w.d.name}` : w.d.name + (w.optic !== 'iron' ? ` \u00B7 ${OPTICS[w.optic].name}` : '') + (w.atts.length ? ` \u00B7 ${w.atts.length} att` : '') + (am ? ` \u00B7 ${am}` : '') + (w.d.burst ? ' \u00B7 burst' : '');
+  const wn = w.glMode ? `40mm grenade launcher \u00B7 on ${w.d.name}` : (w.upgraded ? papName(w.d) : w.d.name) + (w.optic !== 'iron' ? ` \u00B7 ${OPTICS[w.optic].name}` : '') + (w.atts.length ? ` \u00B7 ${w.atts.length} att` : '') + (am ? ` \u00B7 ${am}` : '') + (w.d.burst ? ' \u00B7 burst' : '');
   if ($('#wName')._t !== wn) { $('#wName').textContent = wn; $('#wName')._t = wn; }
   const ammoEl = $('#wAmmo');
   if (w.glMode) { ammoEl.innerHTML = `${w.gl.ammo}<small> / ${w.gl.reserve}</small>`; ammoEl.classList.toggle('low', w.gl.ammo === 0); }

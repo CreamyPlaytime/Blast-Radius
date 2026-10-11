@@ -821,7 +821,7 @@ function deZfight(root, GROW = .00035) {
 }
 
 /* atts: list of attachment keys (or a { slot: key } object, or a single key) */
-function buildGun(key, optic = 'iron', atts = null) {
+function buildGun(key, optic = 'iron', atts = null, upgraded = false) {
   if (!BUILD[key]) key = 'ar';
   if (typeof atts === 'string') atts = atts !== 'none' ? [atts] : [];
   else if (atts && !Array.isArray(atts)) atts = attList(atts);
@@ -941,5 +941,35 @@ function buildGun(key, optic = 'iron', atts = null) {
   if (has('lightstock')) stockScale(.75, .7, .92);
   if (has('heavystock')) stockScale(1.15, 1.1, 1.04);
   R.magY = R.mag ? R.mag.position.y : 0; R.boltZ = R.bolt ? R.bolt.position.z : 0; R.pumpZ = R.pump ? R.pump.position.z : 0; R.slideZ = R.slide ? R.slide.position.z : 0; R.magZ = R.mag ? R.mag.position.z : 0;
+  if (upgraded) papCamo(g);
+  R.upgraded = !!upgraded;
   return R;
+}
+
+/* ---------- Pack-a-Punch camo: mirror chrome on the steel, glowing violet on the furniture ---------- */
+const PAP_MAT = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+  // a swirl of violet and cyan "energy" over the metal
+  x.fillStyle = '#B8BEC8'; x.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 26; i++) {
+    x.strokeStyle = i % 3 ? `rgba(150,70,255,${.35 + Math.random() * .4})` : `rgba(90,220,255,${.3 + Math.random() * .4})`;
+    x.lineWidth = 2 + Math.random() * 5; x.beginPath();
+    const y0 = Math.random() * 128, f = 10 + Math.random() * 20, ph = Math.random() * 6;
+    for (let px = 0; px <= 128; px += 4) { const yy = y0 + Math.sin(px / f + ph) * 10; px ? x.lineTo(px, yy) : x.moveTo(px, yy); }
+    x.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 6);
+  return {
+    chrome: new THREE.MeshStandardMaterial({ color: 0xDCE2EA, metalness: 1, roughness: .12, envMap: gunEnv, envMapIntensity: 1.6 }),
+    camo: new THREE.MeshStandardMaterial({ color: 0xFFFFFF, map: t, metalness: .85, roughness: .2, envMap: gunEnv, envMapIntensity: 1.3, emissive: 0x5A20B0, emissiveMap: t, emissiveIntensity: .55 }),
+  };
+})();
+function papCamo(root) {
+  const steel = new Set([pmat(GC.body), pmat(GC.dark), pmat(GC.black)]);
+  const furn = new Set([pmat(GC.poly), pmat(GC.od), pmat(GC.tan), pmat(GC.wood)]);
+  root.traverse(o => {
+    if (!o.isMesh || Array.isArray(o.material)) return;
+    if (steel.has(o.material)) o.material = PAP_MAT.camo;
+    else if (furn.has(o.material) || o.material === pmat(GC.metal)) o.material = PAP_MAT.chrome;
+  });
 }

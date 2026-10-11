@@ -45,7 +45,7 @@ function screenDef(id) {
   if (id === 'main') return {
     crumb: '<b>Main menu</b>', head: '', big: true, items: [
       { label: 'Multiplayer', desc: `Custom games against bots. Team Deathmatch, Free-for-All and Kill Confirmed on ${MAP_KEYS().length} maps.`, act: () => go('mp'), side: sideRecordMP },
-      { label: 'Zombies', desc: 'Survive endless rounds of the undead on Atomic Acres at night. Earn points, buy guns off the walls and gamble on the mystery box.', act: () => go('zm'), side: sideRecordZM },
+      { label: 'Zombies', desc: 'Survive endless rounds of the undead at night on Atomic Acres, Freight or Gate 9. Earn points, buy guns off the walls and gamble on the mystery box.', act: () => go('zm'), side: sideRecordZM },
       { label: 'Play with friends', desc: 'Team up or face off. Two windows on two monitors, split screen on one, or an online game friends join with a code.', act: () => go('party'), side: sidePartyInfo },
       { label: 'Create a Class', desc: `Build five loadouts from ${PRIMARIES.length} primaries and ${SECONDARIES.length} sidearms and launchers: optics, ammo types, up to five attachments, three to six perks and a wildcard.`, act: () => openEditor(S.classIdx), side: sideClasses },
       { label: 'Options', desc: 'Sensitivity, field of view, audio, kill cams and your callsign.', act: () => go('opt'), side: sideControls },
@@ -80,9 +80,9 @@ function screenDef(id) {
     };
   }
   if (id === 'zm') return {
-    crumb: 'Zombies \u00B7 <b>Solo</b>', head: '<small>Zombies</small>Atomic Acres', theme: 'zm', side: sideZombies, items: [
+    crumb: 'Zombies \u00B7 <b>Solo</b>', head: `<small>Zombies</small>${MAPS[zmMapKey(S.zmMap)].name}`, theme: 'zm', side: sideZombies, items: [
       { label: 'Start game', desc: 'You start with a pistol, a knife, two grenades and 500 points.', act: launchZM },
-      { label: 'Map', kind: 'choice', sep: true, value: () => 'Atomic Acres \u00B7 Night', change: () => {}, desc: 'The test town after dark. Zombies dig up out of the yards and the street.' },
+      zmMapItem(true),
       { label: 'Starting round', kind: 'choice', value: () => S.zmStart, change: d => { S.zmStart = cycle([1, 5, 10, 15, 20], S.zmStart, d); }, desc: 'Start later for a tougher fight. You get extra points to make up for it.' },
       { label: 'Difficulty', kind: 'choice', value: () => ZM_DIFF[S.zmDiff].name, change: d => { S.zmDiff = cycle(Object.keys(ZM_DIFF), S.zmDiff, d); }, desc: ZM_DIFF[S.zmDiff].desc },
     ],
@@ -159,6 +159,7 @@ function lobbyDef() {
     { label: 'Game', kind: 'choice', sep: true, value: () => zm ? 'Zombies' : 'Multiplayer', change: () => { S.mpKind = zm ? 'mp' : 'zm'; menuContext(); }, desc: 'Bots and team modes, or zombies together.' },
   ];
   if (zm) items.push(
+    zmMapItem(false),
     { label: 'Starting round', kind: 'choice', value: () => S.zmStart, change: d => { S.zmStart = cycle([1, 5, 10, 15, 20], S.zmStart, d); }, desc: 'Start later for a tougher fight.' },
     { label: 'Difficulty', kind: 'choice', value: () => ZM_DIFF[S.zmDiff].name, change: d => { S.zmDiff = cycle(Object.keys(ZM_DIFF), S.zmDiff, d); }, desc: ZM_DIFF[S.zmDiff].desc },
   );
@@ -185,7 +186,7 @@ function partyRows() {
 function sideLobbyParty() {
   const local = NET.kind === 'local', hm = netHost() ? netLobbyMeta() : (NET.hostMeta || {});
   const zm = hm.k === 'zm', M = MODES[hm.mode] || MODES.tdm;
-  const what = !hm.k ? '' : zm ? `Zombies \u00B7 Atomic Acres \u00B7 round ${hm.zs || 1}` : `${M.name}${hm.mode === 'ffa' ? '' : hm.teams === 'versus' ? ' \u00B7 versus' : ' \u00B7 co-op'} \u00B7 ${(MAPS[hm.map] || MAPS.acres).name}`;
+  const what = !hm.k ? '' : zm ? `Zombies \u00B7 ${MAPS[zmMapKey(hm.zm)].name} \u00B7 round ${hm.zs || 1}` : `${M.name}${hm.mode === 'ffa' ? '' : hm.teams === 'versus' ? ' \u00B7 versus' : ' \u00B7 co-op'} \u00B7 ${(MAPS[hm.map] || MAPS.acres).name}`;
   const how = local
     ? (netHost() ? `<p><b>Two monitors:</b> open a Player 2 window (or open this game again in another tab and pick Join there), then drag it to your other monitor.</p><p><b>One monitor:</b> turn on split screen.</p><p class="dim">Each window reads its own controller. Sound plays from the window you last clicked.</p>` : `<p>You\u2019re playing on the same computer as the host. They pick the game and start it.</p>`)
     : (netHost() ? (NET.via === 'peer' ? `<p>Friends open this game\u2019s link, pick <b>Play with friends</b>, type this code and join.</p><p class="dim">Your computer is the server, so keep this window open and on screen while you play.</p>` : `<p>Friends open this game in claude.ai, pick <b>Play with friends</b>, type this code and join.</p>`) : `<p>The host starts the game.</p>`);
@@ -349,7 +350,8 @@ function menuContext() {
   const hm = netHost() ? netLobbyMeta() : NET.hostMeta;
   const lobby = MENU.screen === 'lobby' && hm;
   const zm = MENU.screen === 'zm' || !!(lobby && hm.k === 'zm');
-  loadMap(zm ? 'acres' : lobby && MAPS[hm.map] ? hm.map : settings.map, zm ? 'night' : 'day');
+  loadMap(zm ? zmMapKey(lobby ? hm.zm : settings.zmMap) : lobby && MAPS[hm.map] ? hm.map : settings.map, zm ? 'night' : 'day');
+  if (zm) zmNightSky();
   if (MENU.screen !== 'title') startMusic(zm ? 'zm' : 'mp');
 }
 function musicVolume() {
@@ -447,12 +449,19 @@ function launchMP() {
   if (netHost()) { settings.mpKind = 'mp'; cfg = netStartCfg(); }
   showLoading(`${MODES[settings.mode].name} \u00B7 ${DIFF[settings.difficulty].name} bots`, MAPS[settings.map].name, TIPS[Math.random() * TIPS.length | 0], false, () => startMatch(cfg));
 }
+// the zombies map picker (solo screen and the party lobby share it)
+function zmMapItem(sep) {
+  const S = settings;
+  return { label: 'Map', kind: 'choice', sep, value: () => ZM_MAPS[zmMapKey(S.zmMap)].label,
+    change: d => { S.zmMap = cycle(Object.keys(ZM_MAPS), zmMapKey(S.zmMap), d); menuContext(); },
+    desc: ZM_MAPS[zmMapKey(S.zmMap)].desc };
+}
 function launchZM() {
   if (netClient()) return;
   MENU.lastLaunch = launchZM;
   let cfg = null;
   if (netHost()) { settings.mpKind = 'zm'; cfg = netStartCfg(); }
-  showLoading(`Zombies \u00B7 Round ${settings.zmStart} \u00B7 ${ZM_DIFF[settings.zmDiff].name}`, 'Atomic Acres', ZTIPS[Math.random() * ZTIPS.length | 0], true, () => startZombies(cfg));
+  showLoading(`Zombies \u00B7 Round ${settings.zmStart} \u00B7 ${ZM_DIFF[settings.zmDiff].name}`, `${MAPS[zmMapKey(settings.zmMap)].name} \u00B7 Night`, ZTIPS[Math.random() * ZTIPS.length | 0], true, () => startZombies(cfg));
 }
 // after a match: back to the screen you launched from
 function showMenu() {

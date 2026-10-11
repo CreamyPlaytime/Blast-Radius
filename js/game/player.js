@@ -207,7 +207,7 @@ function foreFit(R) {
   return { w: clamp(w, .012, .045), h: clamp(top - f.y + .01, .015, .08) };
 }
 function makeVm(w, sleeve) {
-  const R = buildGun(w.key, w.optic, w.atts);
+  const R = buildGun(w.key, w.optic, w.atts, !!w.upgraded);
   const g = R.group;
   const rh = makeHand('grip', sleeve); rh.position.set(R.grip.x, R.grip.y, R.grip.z); rh.rotation.x = R.fore ? -.3 : -.22; g.add(rh); R.rh = rh;
   // off hand in its own group so it can reach for magazines
@@ -559,7 +559,7 @@ function updatePlayer(dt) {
     if (I.fire && !G.firedPress && canFire && w.burstLeft <= 0) w.burstLeft = w.d.burst;
     if (w.burstLeft > 0) {
       if (w.ammo <= 0 || w.reloading || busy()) w.burstLeft = 0;
-      else if (w.cd <= 0 && !G.ended) { fireOne(); w.burstLeft--; if (w.burstLeft <= 0) w.cd = w.d.burstDelay; }
+      else if (w.cd <= 0 && !G.ended) { fireOne(); w.burstLeft--; if (w.burstLeft <= 0) w.cd = w.d.burstDelay / (p.zmPerks && p.zmPerks.has('rapidround') ? 1.33 : 1); }
     }
     if (I.fire) G.firedPress = true;
   } else if (I.fire && canFire && (w.d.auto || !G.firedPress)) { fireOne(); G.firedPress = true; }

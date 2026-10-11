@@ -158,12 +158,13 @@ function detonateNow(p) {
     boomFx(p.type, x, y, z);
     flashLight.position.set(x, y + 1, z); flashLight.intensity = 6 * B.fx;
     foleyAt('boom', x, z, 1.2 * Math.min(1.25, B.fx), 140);
-    if (p.direct && p.direct.alive) applyDamage(p.direct, o, p.type === 'rocket' ? 150 : 80, false, B.w);
+    const pk = p.papK || 1;
+    if (p.direct && p.direct.alive) applyDamage(p.direct, o, (p.type === 'rocket' ? 150 : 80) * pk, false, B.w);
     for (const e of G.ents) {
       if (!e.alive || (e !== o && !isEnemy(o, e))) continue;
       const d = Math.hypot(e.pos.x - x, e.pos.y + .9 - y, e.pos.z - z);
       if (d > B.r || !losPoint(p.pos, e)) continue;
-      applyDamage(e, o, (e === o ? .6 : 1) * (B.dmg * Math.pow(1 - d / B.r, 1.15) + (d < 1.6 ? B.close : 0)), false, B.w);
+      applyDamage(e, o, (e === o ? .6 : pk) * (B.dmg * Math.pow(1 - d / B.r, 1.15) + (d < 1.6 ? B.close : 0)), false, B.w);
     }
     for (const b of G.ents) if (b.isBot && b.alive && Math.hypot(b.pos.x - x, b.pos.z - z) < 30 && isEnemy(b, o)) { b.lastKnown = o.pos.clone(); b.lastKnownT = G.now; }
     if (P && P.alive) { const d = Math.hypot(P.pos.x - x, P.pos.z - z), R = 16 * B.fx; if (d < R) { G.shake = Math.max(G.shake, 1 - d / R); rumble(.9 * (1 - d / R), .8, 400); } }

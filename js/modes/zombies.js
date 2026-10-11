@@ -6,15 +6,25 @@ const ZM_DIFF = {
   normal: { name: 'Normal', hp: 1, dmg: 1, speed: 1, desc: 'The real thing. Zombies get tougher every round.' },
 };
 const ZM_POWERUPS = {
-  maxammo:   { name: 'Max Ammo', color: '#8CFF6A', w: .3 },
-  instakill: { name: 'Insta-Kill', color: '#FF5A4A', w: .25 },
-  double:    { name: 'Double Points', color: '#F2B53B', w: .3 },
-  nuke:      { name: 'Kaboom', color: '#FF8A3A', w: .15 },
+  maxammo:   { name: 'Max Ammo', color: '#8CFF6A', w: .27 },
+  instakill: { name: 'Insta-Kill', color: '#FF5A4A', w: .22 },
+  double:    { name: 'Double Points', color: '#F2B53B', w: .27 },
+  nuke:      { name: 'Kaboom', color: '#FF8A3A', w: .13 },
+  firesale:  { name: 'Fire Sale', color: '#4FB8FF', w: .11 },
 };
+// maps with a zombies layout, as the menu lists them
+const ZM_MAPS = {
+  acres:   { label: 'Atomic Acres \u00B7 Night', desc: 'The test town after dark. Zombies dig up out of the yards and the street.' },
+  freight: { label: 'Freight \u00B7 Night', desc: 'The container yard in the rain. Tight lanes, nowhere to run, and they crawl out of every gap.' },
+  gate9:   { label: 'Gate 9 \u00B7 Night', desc: 'The departure lounge and the dark apron. Hold the terminal or make a run for the jet.' },
+};
+const zmMapKey = k => ZM_MAPS[k] && MAPS[k] && MAPS[k].zombies ? k : 'acres';
+const ZM_BOX_COST = 950, ZM_FIRESALE_COST = 10;
+const zmBoxCost = () => G.zm && G.zm.fireSaleT > 0 ? ZM_FIRESALE_COST : ZM_BOX_COST;
 const ZM_BOX_POOL = ['ar', 'bulldog', 'kestrel', 'smg', 'wasp', 'brute', 'lmg', 'anvil', 'shotgun', 'riot', 'coach', 'dmr', 'sniper', 'hammer', 'magnum', 'trio', 'revolver', 'mp', 'rpg', 'atomizer'];
-const zmHealth = r => Math.round((r < 10 ? 150 + 100 * (r - 1) : 950 * Math.pow(1.1, r - 9)) * G.zm.diff.hp);
+const zmHealth = r => Math.round((r < 10 ? 100 + 50 * (r - 1) : 550 * Math.pow(1.08, r - 9)) * G.zm.diff.hp);
 const zmCount = r => r <= 5 ? [6, 8, 13, 18, 24][r - 1] : Math.round(24 + (r - 5) * 2.6);
-const zmMaxRes = w => w.d.reserve * (w.key === 'atomizer' ? 1 : 2);
+const zmMaxRes = w => Math.round(w.d.reserve * (w.key === 'atomizer' ? 1 : 2) * (w.upgraded ? 1.5 : 1));
 let zid = 10000;
 
 /* ---------- starting and stopping ---------- */
@@ -22,9 +32,10 @@ let zid = 10000;
 function startZombies(cfg) {
   initAudio(); stopMusic();
   clearMatch();
-  loadMap('acres', 'night');
-  const L = MAPS.acres.zombies;
-  const C = cfg || { zs: settings.zmStart, zd: settings.zmDiff };
+  const C = cfg || { zs: settings.zmStart, zd: settings.zmDiff, zm: settings.zmMap };
+  const mapKey = zmMapKey(C.zm);
+  loadMap(mapKey, 'night'); zmNightSky();
+  const L = MAPS[mapKey].zombies;
   G.mode = 'zombies'; G.limit = 0; G.timeLeft = Infinity; G.now = 0; G.teamScore = { A: 0, B: 0 }; G.ended = false; G.endT = 0;
   const player = makeEntity(settings.profile.name || 'You', 'A', false, settings.classes[settings.classIdx]);
   G.player = player; G.ents.push(player);
@@ -38,7 +49,7 @@ function startZombies(cfg) {
   G.zm = {
     layout: L, diff: ZM_DIFF[C.zd] || ZM_DIFF.normal, round: 0, toSpawn: 0, spawnT: 0, breakT: 0, roundN: 0, bleed: false, dead: false,
     points: 500 + 400 * (start - 1), total: 0, kills: 0, heads: 0, knifes: 0, downs: 0,
-    power: { instakill: 0, double: 0 }, drops: [], dropsRound: 0, budget: 3,
+    power: { instakill: 0, double: 0 }, fireSaleT: 0, map: mapKey, pap: null, drops: [], dropsRound: 0, budget: 3,
     meshes: [], boxes: [], uses: [], near: null, down: 0, invuln: 0, over: false, startRound: start,
   };
   zmBuildProps(L);
@@ -61,6 +72,21 @@ function zmTeardown() {
   G.zm = null;
   applyLighting('day'); torch.intensity = 0;
   $('#zmHud').hidden = true; $('#hud').classList.remove('zm');
+}
+
+// maps built for daytime have no night sky: give them a dark dome with a scatter of stars for zombies
+function zmNightSky() {
+  if (SKY.night || !MAP) return;
+  const g = new THREE.SphereGeometry(410, 20, 12), pos = g.attributes.position, cols = [], c = new THREE.Color(), top = new THREE.Color(0x05080E), hor = new THREE.Color(0x141C26);
+  for (let i = 0; i < pos.count; i++) { const y = pos.getY(i) / 410; c.copy(hor).lerp(top, clamp(y * 2, 0, 1)); cols.push(c.r, c.g, c.b); }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  const grp = new THREE.Group(); grp.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false })));
+  const N = 500, sp = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) { const a = Math.random() * TAU, e = Math.asin(Math.random() * .95 + .05); sp.set([Math.cos(a) * Math.cos(e) * 400, Math.sin(e) * 400, Math.sin(a) * Math.cos(e) * 400], i * 3); }
+  const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+  grp.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xC8D4E8, size: 1.6, sizeAttenuation: false, fog: false })));
+  SKY.night = grp; WORLD.add(grp);
+  applyLighting('night');
 }
 
 /* ---------- props: wall-buys, mystery box, perk machines ---------- */
@@ -117,11 +143,11 @@ function zmBuildProps(L) {
   const show = new THREE.Group(); show.position.y = .7; bx.add(show);
   const cos = Math.abs(Math.cos(B.rot)) > .5;
   zmAddBox(B.x - (cos ? .8 : .4), 0, B.z - (cos ? .4 : .8), B.x + (cos ? .8 : .4), .66, B.z + (cos ? .4 : .8));
-  Z.box = { state: 'idle', t: 0, lid, beam, show, gun: null, key: null, next: 0, cost: 950, x: B.x, z: B.z };
+  Z.box = { state: 'idle', t: 0, lid, beam, show, gun: null, key: null, next: 0, cost: ZM_BOX_COST, x: B.x, z: B.z };
   Z.uses.push({
     x: B.x, y: 0, z: B.z, n: null, r: 1.9,
-    cost: () => Z.box.state === 'idle' ? Z.box.cost : 0,
-    text: () => Z.box.state === 'idle' ? 'a random weapon' : Z.box.state === 'offer' ? `the ${WEAPONS[Z.box.key].name}` : null,
+    cost: () => Z.box.state === 'idle' ? zmBoxCost() : 0,
+    text: () => Z.box.state === 'idle' ? (Z.fireSaleT > 0 ? 'a random weapon \u00B7 FIRE SALE' : 'a random weapon') : Z.box.state === 'offer' ? `the ${WEAPONS[Z.box.key].name}` : null,
     use: () => zmBoxUse(),
   });
   // perk machines
@@ -143,6 +169,84 @@ function zmBuildProps(L) {
     });
   }
   rebuildNav();
+  if (L.pap) { zmBuildPap(L.pap); rebuildNav(); }
+}
+
+/* ---------- Pack-a-Punch: the upgrade machine ---------- */
+// nearest spot to the layout's point where the machine's whole footprint is open ground
+function zmPapSpot(P) {
+  const ok = (x, z) => [[0, 0], [-.75, -.75], [.75, -.75], [-.75, .75], [.75, .75], [P.n[0] * 1.2, P.n[1] * 1.2]].every(([dx, dz]) => freeAt(x + dx, z + dz));
+  if (ok(P.x, P.z)) return { x: P.x, z: P.z };
+  for (let r = .5; r <= 5; r += .5) for (let k = 0; k < 16; k++) { const a = k / 16 * TAU, x = P.x + Math.cos(a) * r, z = P.z + Math.sin(a) * r; if (ok(x, z)) return { x, z }; }
+  return { x: P.x, z: P.z };
+}
+const zmPapMat = (c, e, k = .6) => new THREE.MeshStandardMaterial({ color: c, metalness: .85, roughness: .28, envMap: typeof gunEnv !== 'undefined' ? gunEnv : null, emissive: e || 0x000000, emissiveIntensity: k });
+function zmBuildPap(P) {
+  const Z = G.zm, sp = zmPapSpot(P), n = P.n, g = new THREE.Group();
+  g.position.set(sp.x, 0, sp.z); g.rotation.y = Math.atan2(n[0], n[1]); zmMesh(g);
+  const shell = zmPapMat(0x2A1E3E, 0x1A0830, .5), trim = zmPapMat(0xC9A44A), steel = zmPapMat(0xB8C0CC);
+  const glowM = new THREE.MeshBasicMaterial({ color: 0xB45CFF }), runeM = new THREE.MeshBasicMaterial({ color: 0x6FE8FF });
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+  add(new THREE.BoxGeometry(1.4, .22, 1.05), zmPapMat(0x15121C), 0, .11, 0);                      // plinth
+  add(new THREE.BoxGeometry(1.25, 1.0, .9), shell, 0, .72, 0);                                     // body
+  add(new THREE.BoxGeometry(1.32, .08, .97), trim, 0, 1.24, 0);                                     // brass band
+  add(new THREE.BoxGeometry(1.2, .34, .86), shell, 0, 1.45, -.02);                                  // hood
+  for (const x of [-.68, .68]) add(new THREE.BoxGeometry(.1, 1.5, .1), trim, x, .95, .44);         // corner pillars
+  const core = add(new THREE.BoxGeometry(.8, .42, .02), glowM, 0, .78, .456);                       // glowing hatch
+  add(new THREE.BoxGeometry(.9, .06, .05), trim, 0, 1.01, .46); add(new THREE.BoxGeometry(.9, .06, .05), trim, 0, .55, .46);
+  for (const x of [-.52, .52]) for (let k = 0; k < 4; k++) add(new THREE.BoxGeometry(.05, .05, .02), runeM, x, .5 + k * .16, .456);
+  // the twin rollers the gun is fed through
+  const rollers = [];
+  for (const y of [1.36, 1.56]) { const r = add(new THREE.CylinderGeometry(.09, .09, 1.0, 10), steel, 0, y, .46); r.rotation.z = Math.PI / 2; rollers.push(r); }
+  for (const x of [-.52, .52]) add(new THREE.CylinderGeometry(.12, .12, .06, 12), trim, x, 1.46, .46).rotation.z = Math.PI / 2;
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.1, .26), new THREE.MeshBasicMaterial({ map: labelTexture('Pack-a-Punch', '#2A0E4A', '#E8C8FF') })); sign.position.set(0, 1.86, .3); sign.rotation.x = -.2; g.add(sign);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(255, 255, 255), color: 0xA040FF, transparent: true, opacity: .55, depthWrite: false })); halo.position.set(0, 1.1, .5); halo.scale.set(2.4, 2.4, 1); g.add(halo);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(.18, .3, 30, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xB45CFF, transparent: true, opacity: .08, depthWrite: false, side: THREE.DoubleSide, fog: false })); beam.position.y = 16.6; g.add(beam);
+  const light = new THREE.PointLight(0xA040FF, 1.4, 7, 2); light.position.set(0, 1.2, .9); g.add(light);
+  const show = new THREE.Group(); show.position.set(0, 1.46, .7); g.add(show);
+  const alongX = Math.abs(n[0]) > .5, hx = alongX ? .53 : .7, hz = alongX ? .7 : .53;
+  zmAddBox(sp.x - hx, 0, sp.z - hz, sp.x + hx, 1.62, sp.z + hz);
+  Z.pap = { core, halo, light, rollers, show, gun: null, t: 0, busy: 0 };
+  Z.uses.push({
+    x: sp.x + n[0] * 1.1, y: 0, z: sp.z + n[1] * 1.1, n, r: 2,
+    cost: () => ZM_PAP.cost,
+    text: () => { const w = weapon(G.player); return Z.pap.busy > 0 || !w || w.upgraded || !WEAPONS[w.key].mag ? null : `Pack-a-Punch your ${w.d.name}`; },
+    use: () => zmUpgradeWeapon(),
+  });
+}
+// 2.5x damage, double the magazine, a full reserve, and the camo
+function zmUpgradeWeapon() {
+  const Z = G.zm, p = G.player, w = weapon(p);
+  if (!w || w.upgraded) return;
+  cancelReload(w);
+  w.upgraded = true;
+  w.dmgK = (w.dmgK || 1) * ZM_PAP.dmg;
+  if (w.splash) w.splash = Object.assign({}, w.splash, { dmg: w.splash.dmg * ZM_PAP.dmg });
+  w.mag = Math.round(w.mag * ZM_PAP.mag); w.ammo = w.mag; w.reserve = zmMaxRes(w);
+  setViewmodel(w); G.adsT = 0;
+  // a spin through the rollers on the machine for everyone to see
+  const X = Z.pap;
+  if (X) {
+    if (X.gun) X.show.remove(X.gun);
+    const R = buildGun(w.key, w.optic, w.atts, true); R.group.scale.setScalar(2); R.group.rotation.y = Math.PI / 2; X.gun = R.group; X.show.add(X.gun); X.busy = 2.4; X.t = 0;
+    X.light.intensity = 6; burst(X.show.getWorldPosition(tmpV).x, tmpV.y, tmpV.z, 'zap', 14);
+  }
+  powerupSound(); G.flashFx = Math.max(G.flashFx, .25);
+  banner('Pack-a-Punched', `${papName(w.d)} \u00B7 ${ZM_PAP.dmg}\u00D7 damage \u00B7 ${w.mag}-round mag`, 2.4);
+}
+function zmUpdatePap(dt) {
+  const X = G.zm.pap; if (!X) return;
+  X.t += dt;
+  const pulse = .5 + .5 * Math.sin(G.now * 3.2);
+  X.core.material.color.setHSL(.76 + pulse * .06, 1, .5 + pulse * .15);
+  X.halo.material.opacity = .35 + pulse * .3;
+  for (const r of X.rollers) r.rotation.x += dt * (X.busy > 0 ? 18 : 1.4);
+  if (X.busy > 0) {
+    X.busy -= dt;
+    X.light.intensity = lerp(X.light.intensity, 1.4, Math.min(1, dt * 1.5));
+    if (X.gun) { X.gun.rotation.y += dt * 6; X.show.position.y = 1.46 + Math.sin(X.t * 8) * .04; }
+    if (X.busy <= 0 && X.gun) { X.show.remove(X.gun); X.gun = null; }
+  } else X.light.intensity = 1.2 + pulse * .5;
 }
 
 /* ---------- rounds ---------- */
@@ -213,7 +317,7 @@ function zmHoundSpot() {
   const p = zmAnyHuman();
   for (let k = 0; k < 30; k++) {
     const a = Math.random() * TAU, d = rand(8, 15), x = p.pos.x + Math.cos(a) * d, z = p.pos.z + Math.sin(a) * d;
-    if (freeAt(x, z) && freeAt(x + .5, z) && freeAt(x, z + .5) && Math.abs(x) < 36 && Math.abs(z) < 24) return { x, z };
+    const B = MAP.bounds; if (freeAt(x, z) && freeAt(x + .5, z) && freeAt(x, z + .5) && x > B[0] + 1 && x < B[1] - 1 && z > B[2] + 1 && z < B[3] - 1) return { x, z };
   }
   return null;
 }
@@ -262,6 +366,7 @@ function zmUpdate(dt) {
   Z.budget = 3; Z.climbBudget = 1;
   if (Z.power.instakill > 0) Z.power.instakill -= dt;
   if (Z.power.double > 0) Z.power.double -= dt;
+  if (Z.fireSaleT > 0) { Z.fireSaleT -= dt; if (Z.fireSaleT <= 0) popup('Fire Sale is over'); }
   if (Z.invuln > 0) Z.invuln -= dt;
   if (Z.down > 0) { Z.down -= dt; if (Z.down <= 0) { if (Z.bleed) zmBledOut(); else zmRevive(); } }
   // friends' soldiers, and in a friend's window every zombie, follow what their owners send
@@ -271,6 +376,7 @@ function zmUpdate(dt) {
   } else zmHostUpdate(dt);
   zmUpdateDrops(dt);
   zmUpdateBox(dt);
+  zmUpdatePap(dt);
   zmNear();
 }
 function zmHostUpdate(dt) {
@@ -356,6 +462,17 @@ function updateZombie(z, dt) {
     for (const a of [0, .55, -.55, 1.1, -1.1]) { const c = Math.cos(a), s = Math.sin(a); z.climbCD = 0; if (tryClimb(cx * c - cz * s, cx * s + cz * c, p.pos.y - 1.4)) return true; }
     return false;
   };
+  // someone just overhead with no ledge in reach (the plane's roof, a high stand): claw straight up the side
+  if (chase && !z.isDog && z.kind !== 'crawler' && above > 1.3 && d < 4.5 && !Z.over) z.belowT = (z.belowT || 0) + dt; else z.belowT = 0;
+  if (z.belowT > 1.4 && z.onGround) {
+    z.belowT = 0;
+    const bx = d > .3 ? dx : -Math.sin(z.yaw), bz = d > .3 ? dz : -Math.cos(z.yaw);
+    for (const a of [0, .5, -.5, 1, -1, 1.6, -1.6, 2.4, -2.4, Math.PI]) {
+      const c = Math.cos(a), sn = Math.sin(a);
+      const M = findMantle(z, bx * c - bz * sn, bx * sn + bz * c, Math.min(5.2, above + .7), z.kind === 'brute' ? 1.5 : 1.15);
+      if (M && M.ty > z.pos.y + .9) { M.dur = .7 + M.rise * .32; z.climb = M; z.path = null; z.circleT = 0; zombieGroan(z); poseClimb(z); return; }
+    }
+  }
   if (chase) {
     // which floor: only counts as upstairs when actually over a house's upper floor (not just standing high on the truck)
     const floorOf = e => layerAt(e.pos.y) && upstairsFloor(e.pos.x, e.pos.z) ? 1 : 0;
@@ -427,6 +544,16 @@ function updateZombie(z, dt) {
     const ox = z.pos.x - o.pos.x, oz = z.pos.z - o.pos.z, od = ox * ox + oz * oz;
     if (od < .5 && od > 1e-4 && Math.abs(o.pos.y - z.pos.y) < 1) { const k = .5 / Math.sqrt(od); wx += ox * k * .6; wz += oz * k * .6; }
   }
+  // up on something (a wing, a roof, a truck) with the one it wants up here too or higher: don't walk off the edge.
+  // Slide along the edge if that's safe, otherwise stop and turn back. Dropping down is fine when the target is below.
+  if (z.onGround && z.pos.y > .4 && (wx || wz) && (!chase || above > -.8)) {
+    const L0 = Math.hypot(wx, wz), ux = wx / L0, uz = wz / L0, drop = (x, zz) => z.pos.y - zmFloorAt(x, zz, z.pos.y) > 1.1;
+    if (drop(z.pos.x + ux * .7, z.pos.z + uz * .7)) {
+      if (Math.abs(ux) > .2 && !drop(z.pos.x + Math.sign(ux) * .7, z.pos.z)) { wx = Math.sign(ux) * L0 * .8; wz = 0; }
+      else if (Math.abs(uz) > .2 && !drop(z.pos.x, z.pos.z + Math.sign(uz) * .7)) { wz = Math.sign(uz) * L0 * .8; wx = 0; }
+      else { wx = 0; wz = 0; z.vel.x *= .3; z.vel.z *= .3; if (z.circleT > 0) z.circleDir *= -1; }
+    }
+  }
   const L = Math.hypot(wx, wz); if (L > 1) { wx /= L; wz /= L; }
   const spd = (chase ? z.speed : .6) * (z.stunT > 0 ? .35 : 1) * (z.attackT > 0 ? (z.isDog ? .9 : .25) : 1) * (z.blindT > 0 ? .5 : 1);
   moveEntity(z, wx, wz, spd, dt, z.isDog ? (z.onGround ? 12 : 1.5) : 9);
@@ -452,6 +579,18 @@ function updateZombie(z, dt) {
   poseZombie(z, dt);
 }
 
+// height of whatever could be stood on at (x, z), at or below y + a step (0 for the ground)
+function zmFloorAt(x, z, y) {
+  let g = 0; const r = .22;
+  for (const b of boxes) {
+    if (b.noStand || b.max.y > y + STEP || b.max.y <= g) continue;
+    if (x + r < b.min.x || x - r > b.max.x || z + r < b.min.z || z - r > b.max.z) continue;
+    if (b.round && Math.hypot(x - b.round.x, z - b.round.z) > b.round.r + r) continue;
+    g = b.max.y;
+  }
+  return g;
+}
+
 /* ---------- damage, points, going down ---------- */
 function zmAddPoints(n) {
   const Z = G.zm; n *= Z.power.double > 0 ? 2 : 1;
@@ -462,10 +601,12 @@ function zmAddPoints(n) {
 function zmDamage(v, a, amt, head, wkey) {
   const Z = G.zm;
   if (v.isZombie) {
+    if (head) amt *= 2.0;                                   // zombies only: headshots hit twice as hard
     if (v.kind === 'hazmat' && !head && wkey !== 'knife') amt *= .55;
     if (v.kind === 'hazmat' && head) amt *= 1.3;
     if (v.kind === 'brute' && (wkey === 'frag' || wkey === 'semtex' || wkey === 'blast')) amt *= .6;
-    if (Z.power.instakill > 0 && a === G.player) amt = v.health + 1;
+    // Insta-Kill: any damage at all, from anyone (splash, pellets, fire, a friend's shots), kills outright. Brutes too.
+    if (Z.power.instakill > 0 && amt > 0) amt = v.health + 1;
     // legs: shots below the knees, or a blast at their feet, can take them off. Then it crawls.
     const legHit = !head && v.lastHitY !== undefined && v.lastHitY < .62, blastHit = wkey === 'frag' || wkey === 'semtex' || wkey === 'gl' || wkey === 'rpg';
     v.lastHitY = undefined;
@@ -545,7 +686,7 @@ function zmBloaterPop(z) {
   const { x, y, z: zz } = z.pos;
   zmBloaterFx(z);
   for (const h of NET.on ? netHumans() : [G.player]) if (h.alive && Math.hypot(h.pos.x - x, h.pos.z - zz) < 3.2 && Math.abs(h.pos.y - y) < 1.6) applyDamage(h, z, 38 * G.zm.diff.dmg, false, 'blast');
-  for (const o of G.ents) if (o !== z && o.isZombie && o.alive && o.riseT <= 0 && Math.hypot(o.pos.x - x, o.pos.z - zz) < 3) { o.health -= 400; if (o.health <= 0) zmKillZombie(o, G.player, false, 'blast'); }
+  for (const o of G.ents) if (o !== z && o.isZombie && o.alive && o.riseT <= 0 && Math.hypot(o.pos.x - x, o.pos.z - zz) < 3) { o.health -= G.zm.power.instakill > 0 ? o.health + 1 : 400; if (o.health <= 0) zmKillZombie(o, G.player, false, 'blast'); }
 }
 function zmPlayerDown() {
   const Z = G.zm, p = G.player;
@@ -684,6 +825,7 @@ function zmBoxClose() { const X = G.zm.box; X.state = 'idle'; X.t = 0; if (X.gun
 function zmUpdateBox(dt) {
   const X = G.zm.box; if (!X) return;
   X.beam.visible = X.state === 'idle';
+  const fs = G.zm.fireSaleT > 0; X.beam.material.opacity = fs ? .22 + Math.sin(G.now * 8) * .06 : .1; X.beam.material.color.setHex(fs ? 0x4FB8FF : 0x9FD4FF);
   X.lid.rotation.x = lerp(X.lid.rotation.x, X.state === 'idle' ? 0 : -1.6, Math.min(1, dt * 6));
   if (X.state === 'rolling') {
     X.t += dt; X.next -= dt;
@@ -714,6 +856,11 @@ function dropTexture(type) {
   x.fillStyle = '#10161C'; x.strokeStyle = '#10161C'; x.lineWidth = 6; x.textAlign = 'center'; x.textBaseline = 'middle';
   if (type === 'maxammo') { x.font = '800 30px "Saira Condensed", sans-serif'; x.fillText('MAX', 64, 50); x.fillText('AMMO', 64, 80); }
   else if (type === 'double') { x.font = '800 54px "Saira Condensed", sans-serif'; x.fillText('\u00D72', 64, 66); }
+  else if (type === 'firesale') {
+    // a blue price tag with $10 on it
+    x.beginPath(); x.moveTo(30, 44); x.lineTo(80, 44); x.lineTo(100, 64); x.lineTo(80, 84); x.lineTo(30, 84); x.closePath(); x.fill();
+    x.fillStyle = col; x.beginPath(); x.arc(86, 64, 5, 0, TAU); x.fill(); x.font = '800 30px "Saira Condensed", sans-serif'; x.fillText('$10', 56, 66);
+  }
   else if (type === 'instakill') { x.beginPath(); x.arc(64, 58, 26, 0, TAU); x.fill(); x.fillRect(48, 74, 32, 18); x.fillStyle = col; x.beginPath(); x.arc(54, 56, 7, 0, TAU); x.arc(74, 56, 7, 0, TAU); x.fill(); }
   else { x.beginPath(); x.arc(64, 64, 8, 0, TAU); x.fill(); for (let k = 0; k < 3; k++) { const a = k * TAU / 3 - Math.PI / 2; x.beginPath(); x.moveTo(64, 64); x.arc(64, 64, 34, a - .5, a + .5); x.closePath(); x.fill(); } }
   return dropTexCache[type] = new THREE.CanvasTexture(c);
@@ -742,6 +889,7 @@ function zmApplyDrop(type) {
   if (type === 'maxammo') { for (const w of p.weapons) w.reserve = zmMaxRes(w); p.lethalN = 4; }
   else if (type === 'instakill') Z.power.instakill = 30;
   else if (type === 'double') Z.power.double = 30;
+  else if (type === 'firesale') { Z.fireSaleT = 30; popup(`Mystery Box: ${ZM_FIRESALE_COST} points for 30 seconds`); }
   else if (type === 'nuke') {
     Z.nuking = true;
     if (!netClient()) for (const z of G.ents) if (z.isZombie && z.alive && z.riseT <= 0) zmKillZombie(z, p, false, 'nuke');
@@ -766,6 +914,7 @@ function zmHud() {
   let pw = '';
   if (Z.power.instakill > 0) pw += `<span style="--c:${ZM_POWERUPS.instakill.color}" class="${Z.power.instakill < 5 ? 'blink' : ''}">Insta-Kill ${Math.ceil(Z.power.instakill)}</span>`;
   if (Z.power.double > 0) pw += `<span style="--c:${ZM_POWERUPS.double.color}" class="${Z.power.double < 5 ? 'blink' : ''}">Double Points ${Math.ceil(Z.power.double)}</span>`;
+  if (Z.fireSaleT > 0) pw += `<span style="--c:${ZM_POWERUPS.firesale.color}" class="${Z.fireSaleT < 5 ? 'blink' : ''}">Fire Sale ${Math.ceil(Z.fireSaleT)}</span>`;
   const el = $('#zmPowers'); if (el._h !== pw) { el.innerHTML = pw; el._h = pw; }
   const dn = $('#zmDown'); dn.hidden = !(Z.down > 0);
   if (Z.down > 0) { const t = Z.bleed ? `Down \u00B7 ${Math.ceil(Z.down)}` : 'Down'; if (dn.textContent !== t) dn.textContent = t; }

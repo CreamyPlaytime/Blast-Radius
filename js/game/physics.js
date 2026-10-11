@@ -65,9 +65,10 @@ function moveEntity(e, wx, wz, speed, dt, accel) {
 }
 
 /* ---------- mantling: climb onto ledges and vault through windows ---------- */
-function clearAt(x, z, y, h, r = R) {
+// step: boxes whose top is within this of y count as something to stand on, not an obstacle (curved roofs, stepped ledges)
+function clearAt(x, z, y, h, r = R, step = .03) {
   for (const b of boxes) {
-    if (b.max.y <= y + .03 || b.min.y >= y + h) continue;
+    if (b.max.y <= y + step || b.min.y >= y + h) continue;
     if (x + r <= b.min.x || x - r >= b.max.x || z + r <= b.min.z || z - r >= b.max.z) continue;
     return false;
   }
@@ -95,17 +96,20 @@ function findMantle(e, dx, dz, reach = 2.05, roomH = 1.15) {
   if (!clearAt(e.pos.x, e.pos.z, y + Math.min(1, e.height * .55), h + roomH - y - Math.min(1, e.height * .55), R * .9)) return null;
   for (let d = R + .08; d <= R + 1.3; d += .08) {
     const px = e.pos.x + dx * d, pz = e.pos.z + dz * d;
-    if (!clearAt(px, pz, h, roomH)) { if (d > R + .5) return null; continue; }
+    const ST = STEP * .8;
+    if (!clearAt(px, pz, h, roomH, R, ST)) { if (d > R + .5) return null; continue; }
     // vault over if the ground falls away just past the ledge, otherwise step onto it
     let tx = px, tz = pz, vault = false;
     for (let d2 = d + .08; d2 <= d + .95; d2 += .08) {
       const qx = e.pos.x + dx * d2, qz = e.pos.z + dz * d2;
-      if (!clearAt(qx, qz, h, roomH)) break;
+      if (!clearAt(qx, qz, h, roomH, R, ST)) break;
       tx = qx; tz = qz;
       if (topAt(qx, qz, -1, h + .02, R * .95) < h - .35) { vault = true; break; }
     }
-    if (!vault) { const nx = px + dx * .22, nz = pz + dz * .22; if (clearAt(nx, nz, h, roomH)) { tx = nx; tz = nz; } else { tx = px; tz = pz; } }
-    return { fx: e.pos.x, fy: y, fz: e.pos.z, tx, ty: h + .02, tz, rise: h - y, vault, dx, dz, t: 0, dur: .26 + (h - y) * .16, h: roomH };
+    if (!vault) { const nx = px + dx * .22, nz = pz + dz * .22; if (clearAt(nx, nz, h, roomH, R, ST)) { tx = nx; tz = nz; } else { tx = px; tz = pz; } }
+    // land on the highest step under the feet there, not inside it
+    const land = Math.max(h, topAt(tx, tz, h - .01, h + ST, R * .7));
+    return { fx: e.pos.x, fy: y, fz: e.pos.z, tx, ty: land + .02, tz, rise: h - y, vault, dx, dz, t: 0, dur: .26 + (h - y) * .16, h: roomH };
   }
   return null;
 }

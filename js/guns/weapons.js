@@ -161,9 +161,13 @@ const maxAtts = (c, slot) => slot === 'secondary' && WEAPONS[c.secondary].slot !
 const ZM_PERKS = {
   ironhide:   { name: 'Iron Hide', cost: 2500, color: 0xC8352B, css: '#E0503F', desc: 'Take far more hits before going down.' },
   fasthands:  { name: 'Fast Hands', cost: 3000, color: 0x3FA34D, css: '#5CC46A', desc: 'Reload twice as fast.' },
-  rapidround: { name: 'Rapid Round', cost: 2000, color: 0xE0A21E, css: '#F2B53B', desc: 'Fire a third faster.' },
+  rapidround: { name: 'Rapid Round', cost: 2000, color: 0xE0A21E, css: '#F2B53B', desc: 'Every gun fires a third faster, bursts recover faster.' },
   secondwind: { name: 'Second Wind', cost: 500, color: 0x2F6EC8, css: '#4F95DB', desc: 'Get back up once after going down.' },
 };
+// Pack-a-Punch: what an upgrade does to a gun in zombies
+const ZM_PAP = { cost: 5000, dmg: 2.5, mag: 2 };
+// upgraded names, shown on the HUD and in popups
+const papName = d => d.name.replace(/\s+(AR|BR|SMG|LMG|DMR)$/i, '') + ' \u2605 PaP';
 const withAtts = o => Object.assign(noAtts(), o);
 const DEFAULT_CLASSES = [
   { name: 'Assault', primary: 'ar', optic: 'reflex', atts: withAtts({ under: 'grip', muzzle: 'flashhider' }), secondary: 'pistol', secOptic: 'iron', secAtts: noAtts(), perks: ['lightweight', 'quickdraw', 'dexterity'], wildcard: 'none', lethal: 'frag', tact: 'flash' },

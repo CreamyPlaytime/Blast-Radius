@@ -85,7 +85,7 @@ function shoot(e, yaw, pitch, spread, dmgMul) {
     // launchers fire a projectile instead of a hitscan round
     const a = Math.random() * TAU, r = Math.sqrt(Math.random()) * spread;
     const d = f.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
-    fireProjectile(e, w.d.proj, tmpO, d);
+    const pr = fireProjectile(e, w.d.proj, tmpO, d); if (pr && w.upgraded) pr.papK = typeof ZM_PAP !== 'undefined' ? ZM_PAP.dmg : 2.5;
   } else {
     const am = w.am || AMMO.std, n = w.pellets || w.d.pellets;
     // tracers start at the muzzle: your own gun's muzzle as it sits on screen, or the soldier model's muzzle

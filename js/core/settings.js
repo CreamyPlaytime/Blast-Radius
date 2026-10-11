@@ -3,7 +3,7 @@
 
 /* ================= SETTINGS ================= */
 const clone = o => JSON.parse(JSON.stringify(o));
-const settings = { map: 'acres', zmStart: 1, zmDiff: 'normal', profile: null, killcam: true, mode: 'tdm', allies: 3, enemies: 4, ffaBots: 7, aimAssist: 'standard', difficulty: 'regular', time: 10, sens: 1, padSens: 1, fov: 82, vol: .7, music: .6, voiceVol: 1, announcer: true, callouts: true, classes: clone(DEFAULT_CLASSES), classIdx: 0, padPref: 'auto', mpTeams: 'coop', mpKind: 'mp' };
+const settings = { map: 'acres', zmStart: 1, zmDiff: 'normal', zmMap: 'acres', profile: null, killcam: true, mode: 'tdm', allies: 3, enemies: 4, ffaBots: 7, aimAssist: 'standard', difficulty: 'regular', time: 10, sens: 1, padSens: 1, fov: 82, vol: .7, music: .6, voiceVol: 1, announcer: true, callouts: true, classes: clone(DEFAULT_CLASSES), classIdx: 0, padPref: 'auto', mpTeams: 'coop', mpKind: 'mp' };
 // Each player on this browser has a saved profile: callsign, classes, record, sensitivity. Profile 1 is the
 // original save. A window opens on the profile it last used (Player 2 windows keep their own), and anyone can
 // switch with "Switch player" on the main menu.

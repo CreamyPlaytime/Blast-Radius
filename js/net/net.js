@@ -333,7 +333,7 @@ function netFit(st) {
 }
 function netLobbyMeta() {
   const S = settings;
-  return { st: 'lobby', ep: NET.ep, k: S.mpKind, mode: S.mode, map: S.map, time: S.time, diff: S.difficulty, allies: S.allies, enemies: S.enemies, ffa: S.ffaBots, teams: S.mpTeams, zs: S.zmStart, zd: S.zmDiff };
+  return { st: 'lobby', ep: NET.ep, k: S.mpKind, mode: S.mode, map: S.map, time: S.time, diff: S.difficulty, allies: S.allies, enemies: S.enemies, ffa: S.ffaBots, teams: S.mpTeams, zs: S.zmStart, zd: S.zmDiff, zm: zmMapKey(S.zmMap) };
 }
 function netPoseFlags(e, combat) {
   return (e.alive ? 1 : 0) | ((e.stance === 'crouch' ? 1 : e.stance === 'prone' ? 2 : 0) << 1) | (e.slideT > 0 ? 8 : 0) | (e.sprinting ? 16 : 0) | (e.meleeT > 0 ? 32 : 0) | (combat ? 128 : 0);
@@ -735,7 +735,7 @@ function netClientStart(m) {
   NET.ep = m.ep; NET.cfg = m;
   const host = NET.peers.get(NET.hostId);
   const zm = m.k === 'zm';
-  showLoading(zm ? `Zombies · with ${host ? host.name : 'the host'}` : `${MODES[m.mode] ? MODES[m.mode].name : 'Match'} · with ${host ? host.name : 'the host'}`, zm ? 'Atomic Acres' : (MAPS[m.map] || MAPS.acres).name,
+  showLoading(zm ? `Zombies · with ${host ? host.name : 'the host'}` : `${MODES[m.mode] ? MODES[m.mode].name : 'Match'} · with ${host ? host.name : 'the host'}`, zm ? MAPS[zmMapKey(m.zm)].name : (MAPS[m.map] || MAPS.acres).name,
     zm ? ZTIPS[Math.random() * ZTIPS.length | 0] : TIPS[Math.random() * TIPS.length | 0], zm, () => {
       if (!NET.on || !NET.hostMeta || NET.hostMeta.ep !== m.ep || NET.hostMeta.st !== 'play') { NET.starting = false; showMenu(); return; }
       if (zm) startZombies(m); else startMatch(m);

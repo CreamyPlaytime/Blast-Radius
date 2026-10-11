@@ -352,6 +352,7 @@ const ACRES_ZOMBIES = {
     { key: 'lmg',      cost: 2500, x: 29.84,  y: 5.0,  z: -5.0,   n: [-1, 0] },
   ],
   box: { x: 5.3, z: -7.4, rot: Math.PI / 2 },
+  pap: { x: -9, z: 14, n: [0, -1] },
   perks: [
     { key: 'ironhide', x: -35.6, y: 0, z: -14.2, n: [0, 1] },
     { key: 'fasthands', x: 35.6, y: 0, z: -14.2, n: [0, 1] },

@@ -92,12 +92,39 @@ function buildFreight() {
   rain.frustumCulled = false; WORLD.add(rain);
   MAPS.freight.rain = rain;
 }
+
+/* ---------- zombies layout: the yard after dark ---------- */
+// the perimeter is solid containers and invisible walls, so the undead claw up out of the gaps just inside it
+const FREIGHT_ZOMBIES = {
+  start: { x: 0, z: 4, yaw: 0 },
+  spawns: [
+    [-18.6, -18.6], [18.6, -18.6], [-18.6, 18.6], [18.6, 18.6],
+    [0, -18.6], [0, 18.6], [-18.6, 0], [18.6, 0],
+    [-18.6, -9], [18.6, 9], [-9, 18.6], [9, -18.6],
+  ],
+  walls: [
+    { key: 'mp',      cost: 750,  x: -19.9, y: 1.45, z: -6,   n: [1, 0] },
+    { key: 'smg',     cost: 1000, x: 19.9,  y: 1.45, z: 6,    n: [-1, 0] },
+    { key: 'shotgun', cost: 1500, x: 6,     y: 1.45, z: -19.9, n: [0, 1] },
+    { key: 'ar',      cost: 1400, x: -6,    y: 1.45, z: 19.9, n: [0, -1] },
+    { key: 'lmg',     cost: 2500, x: 8.76,  y: 1.45, z: -8.5, n: [-1, 0] },
+  ],
+  box: { x: 6, z: -1, rot: 0 },
+  pap: { x: 0, z: 13.8, n: [0, -1] },
+  perks: [
+    { key: 'ironhide',   x: -19.5, y: 0, z: 12,    n: [1, 0] },
+    { key: 'fasthands',  x: 19.5,  y: 0, z: -12,   n: [-1, 0] },
+    { key: 'secondwind', x: -12,   y: 0, z: -19.5, n: [0, 1] },
+    { key: 'rapidround', x: 12,    y: 0, z: 19.5,  n: [0, -1] },
+  ],
+};
 MAPS.freight = {
-  name: 'Freight', sub: 'Dock 14 \u00B7 Overcast', build: buildFreight,
+  name: 'Freight', sub: 'Dock 14 \u00B7 Overcast', build: buildFreight, zombies: FREIGHT_ZOMBIES,
   desc: 'A tiny container yard in the rain. Spawn, fight, die, repeat.',
   bounds: [-19.4, 19.4, -19.4, 19.4], center: [0, 0], coreR: 12, orbit: { r: 30, h: 21 },
   spawns: { A: [-19, -17, -17, 17], B: [17, 19, -17, 17] },
-  lighting: { day: { fog: [0x8E979C, 30, 150], hemi: [0xBCC6CC, 0x5E5A52, .74], amb: .16, sun: [0xD8DCE0, .55, -20, 40, 15], torch: 0 } },
+  lighting: { day: { fog: [0x8E979C, 30, 150], hemi: [0xBCC6CC, 0x5E5A52, .74], amb: .16, sun: [0xD8DCE0, .55, -20, 40, 15], torch: 0 },
+    night: { fog: [0x0A1016, 10, 60], hemi: [0x52647A, 0x16130F, .24], amb: .06, sun: [0x9DB4FF, .26, -20, 40, 15], torch: 1.7 } },
   mini: { bg: '#2c2f31', draw(x, X, Z, S) { x.fillStyle = '#4e5052'; x.fillRect(X(-20), Z(-20), 40 * S, 40 * S); } },
   tick(dt) {
     const r = this.rain; if (!r) return;
