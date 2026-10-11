@@ -41,6 +41,10 @@ function mergeStatic(root) {
     let G = groups.get(key); if (!G) groups.set(key, G = { m, sig, list: [], cast: false, recv: false, order: o.renderOrder });
     G.list.push(o); G.cast = G.cast || o.castShadow; G.recv = G.recv || o.receiveShadow;
   });
+  // Ultra low keeps lighting to the sun, the sky light and the night torch: every point light (street lamps, the
+  // cockpit glow) adds code to every lit shader, which a console has to compile at each map load
+  const lamps = []; root.traverse(o => { if (o.isPointLight || o.isSpotLight) lamps.push(o); });
+  for (const l of lamps) l.parent.remove(l);
   let before = 0, after = 0;
   const V = new THREE.Vector3(), N3 = new THREE.Matrix3();
   for (const G of groups.values()) {

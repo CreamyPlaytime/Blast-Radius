@@ -72,7 +72,8 @@ function startZombies(cfg) {
 function zmPrewarm() {
   const g = new THREE.Group(); g.position.set(0, -400, 0);
   try {
-    for (const kind of Object.keys(ZVARIANTS)) for (let v = 0; v < ZVARIANTS[kind]; v++) g.add(zTemplate(kind, v).clone(true));
+    // (on Ultra low just one of each kind: enough for the shaders, without holding every variant in memory)
+    for (const kind of Object.keys(ZVARIANTS)) for (let v = 0; v < (settings.res === 'ultra' ? 1 : ZVARIANTS[kind]); v++) g.add(zTemplate(kind, v).clone(true));
     g.add(buildHound().group);
     for (const type of Object.keys(ZM_POWERUPS)) g.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: dropTexture(type), transparent: true, depthWrite: false, fog: false })));
     g.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(80, 66, 50), transparent: true, depthWrite: false, opacity: .5 })));
@@ -223,7 +224,7 @@ function zmBuildPap(P) {
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.1, .26), new THREE.MeshBasicMaterial({ map: labelTexture('Pack-a-Punch', '#2A0E4A', '#E8C8FF') })); sign.position.set(0, 1.86, .3); sign.rotation.x = -.2; g.add(sign);
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(255, 255, 255), color: 0xA040FF, transparent: true, opacity: .55, depthWrite: false })); halo.position.set(0, 1.1, .5); halo.scale.set(2.4, 2.4, 1); g.add(halo);
   const beam = new THREE.Mesh(new THREE.CylinderGeometry(.18, .3, 30, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xB45CFF, transparent: true, opacity: .08, depthWrite: false, side: THREE.DoubleSide, fog: false })); beam.position.y = 16.6; g.add(beam);
-  const light = new THREE.PointLight(0xA040FF, 1.4, 7, 2); light.position.set(0, 1.2, .9); g.add(light);
+  const light = new THREE.PointLight(0xA040FF, 1.4, 7, 2); light.position.set(0, 1.2, .9); g.add(light); light.visible = settings.res !== 'ultra';
   const show = new THREE.Group(); show.position.set(0, 1.46, .7); g.add(show);
   const alongX = Math.abs(n[0]) > .5, hx = alongX ? .53 : .7, hz = alongX ? .7 : .53;
   zmAddBox(sp.x - hx, 0, sp.z - hz, sp.x + hx, 1.62, sp.z + hz);

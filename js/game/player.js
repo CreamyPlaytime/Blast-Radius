@@ -165,7 +165,7 @@ let handSleeve = null;
 function buildHands(col) {
   if (handSleeve === col) return;
   handSleeve = col;
-  for (const g of [knife, tkHand, throwHand]) { const old = g.userData.hand; if (old) g.remove(old); }
+  for (const g of [knife, tkHand, throwHand]) { const old = g.userData.hand; if (old) { g.remove(old); disposeModel(old); } }
   const k = makeHand('knife', col); knife.add(k); knife.userData.hand = k;
   const t = makeHand('knife', col); tkHand.add(t); tkHand.userData.hand = t;
   const th = makeHand('cup', col); th.position.set(.0, -.02, .02); th.rotation.set(-.3, 0, .2); throwHand.add(th); throwHand.userData.hand = th;
@@ -244,7 +244,7 @@ function makeVm(w, sleeve) {
   return R;
 }
 function setViewmodel(w) {
-  if (vm) vmRoot.remove(vm.group);
+  if (vm) { vmRoot.remove(vm.group); disposeModel(vm.group); }
   vm = makeVm(w, mySleeve()); vmRoot.add(vm.group); buildHands(mySleeve());
   const p = G.player;
   G.swapT = .4 * (hasPerk(p, 'amped') ? .5 : 1) * (hasPerk(p, 'fasthands') ? .8 : 1); foley('raise', .5);

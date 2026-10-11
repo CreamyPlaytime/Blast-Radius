@@ -5,7 +5,7 @@
 function clearMatch() {
   if (G.kc) clearKillcam();
   if (G.zm) zmTeardown();
-  for (const e of G.ents) if (e.model) scene.remove(e.model.group);
+  for (const e of G.ents) if (e.model) { scene.remove(e.model.group); disposeModel(e.model.group); }
   for (const t of G.tags) scene.remove(t.mesh);
   for (const d of G.drops) scene.remove(d.mesh);
   for (const k of G.packs) scene.remove(k.mesh);

@@ -386,7 +386,7 @@ function netZSnap() {
 function netRegister(e, id, mine) { e.net = { id, mine }; NET.ents.set(id, e); return e; }
 function netForget(e) {
   if (!e) return;
-  if (e.model) scene.remove(e.model.group);
+  if (e.model) { scene.remove(e.model.group); disposeModel(e.model.group); }
   const i = G.ents.indexOf(e); if (i >= 0) G.ents.splice(i, 1);
   if (e.net) NET.ents.delete(e.net.id);
 }
@@ -412,7 +412,7 @@ function netPuppet(id, name, team, key, optic, human) {
 function netRebuild(e, key, optic) {
   key = netKey(key, e.wkey || 'ar');
   const vis = e.model ? e.model.group.visible : false;
-  if (e.model) scene.remove(e.model.group);
+  if (e.model) { scene.remove(e.model.group); disposeModel(e.model.group); }
   e.tag = null;
   e.model = buildSoldier(netTeamColor(e.team), key, optic || defaultOptic(key), null); scene.add(e.model.group); e.model.group.visible = vis;
   e.weapons[0] = makeWeapon(key, optic, null); e.wi = 0; e.wkey = key;

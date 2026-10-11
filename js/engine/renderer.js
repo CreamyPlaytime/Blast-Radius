@@ -5,7 +5,9 @@
 const canvas = $('#game');
 // antialiasing is fixed when the WebGL context is created, so it takes effect the next time the game loads
 const AA_AT_START = settings.aa !== false;
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: AA_AT_START, logarithmicDepthBuffer: true });
+// Ultra low also drops the logarithmic depth buffer (it makes every shader heavier); it is fixed at startup too
+const ULTRA_AT_START = settings.res === 'ultra';
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: AA_AT_START, logarithmicDepthBuffer: !ULTRA_AT_START });
 // Native follows the screen (capped at 1.5). Low draws one pixel per pixel, and on a big screen (a TV) no more
 // than about 720p's worth, which keeps the drawing buffers small enough for a console's browser.
 const pixelRatio = () => {
@@ -20,7 +22,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.autoClear = false;
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xE4C9A2, 70, 230);
-const camera = new THREE.PerspectiveCamera(settings.fov, 1, 0.05, 600);
+const camera = new THREE.PerspectiveCamera(settings.fov, 1, ULTRA_AT_START ? 0.12 : 0.05, 600);   // without log depth, a nearer near plane would flicker far away
 camera.rotation.order = 'YXZ';
 scene.add(camera);
 const vmScene = new THREE.Scene();
@@ -62,7 +64,7 @@ function applyShadows() {
   scene.traverse(flag); vmScene.traverse(flag);
 }
 // resolution: Low pins the pixel ratio at 1, Native follows the screen (capped at 1.5)
-function applyResolution() { renderer.setPixelRatio(pixelRatio()); resize(); }
+function applyResolution() { renderer.setPixelRatio(pixelRatio()); resize(); flashLight.visible = settings.res !== 'ultra'; }
 // switching into or out of Ultra low rebuilds the map on screen (merged or not), but never in the middle of a match
 function gfxReloadMap() {
   if (typeof G === 'undefined' || G.state !== 'menu' || !MAP) return;
@@ -98,6 +100,7 @@ canvas.addEventListener('webglcontextrestored', () => {
 });
 
 const flashLight = new THREE.PointLight(0xFFC27A, 0, 9, 2); scene.add(flashLight);
+flashLight.visible = settings.res !== 'ultra';   // Ultra low: no muzzle-flash light (every extra light makes every shader bigger)
 // a weapon-mounted torch, used at night
 const torch = new THREE.SpotLight(0xFFF1D6, 0, 34, .42, .55, 1.3);
 torch.position.set(.25, -.2, 0); torch.target.position.set(0, -.05, -1); camera.add(torch); camera.add(torch.target);

@@ -196,7 +196,7 @@ function spawn(e) {
   } else {
     setViewmodel(weapon(e));
     G.adsT = 0; G.eye = STANCE.stand.eye; G.meleeT = 0; G.hold = null; G.mantle = null; G.throwT = 0; G.sprintOutT = 0;
-    if (e.model) scene.remove(e.model.group);
+    if (e.model) { scene.remove(e.model.group); disposeModel(e.model.group); }
     e.model = buildSoldier(TEAMS[e.team] ? TEAMS[e.team].color : TEAMS.A.color, e.cls.primary, e.cls.optic, e.cls.atts); scene.add(e.model.group);
     e.model.group.visible = false; e.model.group.position.copy(e.pos); e.model.group.rotation.set(0, e.yaw, 0);
   }
