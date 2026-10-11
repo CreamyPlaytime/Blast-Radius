@@ -209,7 +209,8 @@ function tank(x, z, r, h, color = 0xD8D2C4, y = 0) {
   cyl(r, h, x, y + h / 2, z, color, 20, { tex: 'metal' });
   cyl(r * .96, .5, x, y + h + .25, z, color, 20, { r2: r * .3 });
   for (let k = 1; k < 4; k++) cyl(r + .03, .08, x, y + h * k / 4, z, new THREE.Color(color).multiplyScalar(.7).getHex(), 20, { cast: false });
-  const s = r * .78; addBox(x - s, y, z - s, x + s, y + h, z + s, 0, { noMesh: true });
+  // true round collision: physics and bullets treat this box as a cylinder (b.round)
+  const b = addBox(x - r, y, z - r, x + r, y + h + .5, z + r, 0, { noMesh: true }); b.round = { x, z, r: r + .03 };
 }
 function barrel(x, z, color = 0x3E6E8E, y = 0) {
   cyl(.3, .9, x, y + .45, z, color, 12);

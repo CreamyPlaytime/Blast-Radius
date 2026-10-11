@@ -14,7 +14,7 @@ function clearMatch() {
   puffs.length = 0;
   G.ents = []; G.tags = []; G.drops = []; G.packs = []; G.proj = []; G.smokes = [];
   if (typeof NET !== 'undefined') NET.ents.clear();
-  G.rec = []; G.events = []; G.lastKill = null; G.myDeath = null; G.kc = null; G.endT = 0;
+  G.rec = []; G.events = []; G.finalClip = null; G.lastKill = null; G.myDeath = null; G.kc = null; G.endT = 0;
   G.flashFx = 0; G.stunFx = 0; G.shake = 0; G.throwT = 0; G.hold = null; G.mantle = null;
   if (typeof laserBeam !== 'undefined') { laserBeam.visible = laserDot.visible = arcLine.visible = arcRing.visible = knifeMark.visible = false; }
   $('#killfeed').innerHTML = ''; $('#popups').innerHTML = '';
@@ -179,6 +179,7 @@ function pauseGame() {
   if (G.state !== 'playing') return;
   G.state = 'paused';
   $('#pauseSub').textContent = (G.zm ? `Zombies \u00B7 Atomic Acres \u00B7 Round ${G.zm.round}` : `${MODES[G.mode].name} \u00B7 ${MAP.name} \u00B7 ${fmtTime(G.timeLeft)} left`) + (NET.on ? ' \u00B7 the match keeps going' : '');
+  $('#endBtn').hidden = NET.on || !!G.zm;
   $('#quitBtn').textContent = NET.on ? (netHost() ? 'End match for everyone' : 'Leave match') : 'Quit to menu';
   $('#pauseBoard').innerHTML = scoreboardHtml();
   renderPauseClasses();
@@ -252,6 +253,14 @@ window.addEventListener('pointerdown', wakeAudio);
 window.addEventListener('keydown', wakeAudio);
 $('#resumeBtn').addEventListener('click', resumeGame);
 $('#quitBtn').addEventListener('click', toMenu);
+// end the match now, with the result screen and final kill cam, instead of quitting straight to the menu
+$('#endBtn').addEventListener('click', () => {
+  if (G.state !== 'paused' || G.ended || NET.on || G.zm) return;
+  $('#pause').hidden = true; G.state = 'playing';
+  document.body.classList.remove('padnav');
+  if (activeEl() && activeEl().blur) activeEl().blur();
+  beginEnding();
+});
 $('#pauseOptBtn').addEventListener('click', () => showPauseOpts(true));
 $('#pauseOptBack').addEventListener('click', () => showPauseOpts(false));
 // the highlighted button follows the mouse as well as the keyboard, so there's always one lit

@@ -2,7 +2,8 @@
 'use strict';
 
 /* ================= REPLAYS: KILL CAMS ================= */
-const REC = 28;
+const REC = 32;
+const EQ_TYPES = ['frag', 'semtex', 'tknife', 'flash', 'stun', 'smoke'];
 function writePose(e, d, o) {
   const m = e.model;
   if (!m) { d.fill(0, o, o + REC); return; }
@@ -22,6 +23,16 @@ function writePose(e, d, o) {
   d[o + 25] = Math.hypot(e.vel.x, e.vel.z);
   d[o + 26] = e.isZombie ? 0 : meleeProgress(e);                     // how far through a knife stab
   d[o + 27] = m._ads || 0;                                              // how far the model's gun is raised
+  // your own equipment in hand: wound up and aiming (hold), then the throw, so kill cams can replay it
+  // friends' windows send theirs along with their position (e.eqH and the rest, from net.js)
+  const me = e === G.player, H = me && G.hold, thr = me && !H && G.throwT > 0;
+  if (me) {
+    d[o + 28] = H ? clamp(H.t / .18, 0, 1) : -1;
+    d[o + 29] = thr ? clamp(1 - G.throwT / .32, 0, 1) : -1;
+    d[o + 30] = H ? EQ_TYPES.indexOf(H.type) : thr ? EQ_TYPES.indexOf(G.throwType) : -1;
+    d[o + 31] = thr && G.thrown ? 1 : 0;
+  } else if (e.human && e.alive && e.eqY >= 0) { d[o + 28] = e.eqH; d[o + 29] = e.eqT; d[o + 30] = e.eqY; d[o + 31] = e.eqR ? 1 : 0; }
+  else { d[o + 28] = -1; d[o + 29] = -1; d[o + 30] = -1; d[o + 31] = 0; }
 }
 function readPose(e, d, o, show) {
   const m = e.model; if (!m) return;
@@ -38,6 +49,7 @@ function snapPoses() {
   return { d, ix };
 }
 function recordFrame() {
+  if (G.kc && G.kc.clip) return;   // playing a saved final-kill clip: the match is over, nothing new to record
   const { d, ix } = snapPoses();
   const pr = [];
   for (const p of G.proj) pr.push(p.type, p.pos.x, p.pos.y, p.pos.z, p.mesh.rotation.x, p.mesh.rotation.y, p.mesh.rotation.z);
@@ -46,6 +58,13 @@ function recordFrame() {
   const K = G.kc, keep = Math.min(G.now - 7, K ? K.t - 1 : Infinity);
   while (G.rec.length && G.rec[0].t < keep) { G.rec.shift(); if (K && K.fi > 0) K.fi--; }
   while (G.events.length && G.events[0].t < keep) { G.events.shift(); if (K && K.ei > 0) K.ei--; }
+  // the live buffer only holds 7 seconds, so once the newest kill's replay is complete, save a copy of it.
+  // That way the final kill cam can still play however long ago the last kill was when the match ends.
+  const LK = G.lastKill;
+  if (LK && (!G.finalClip || G.finalClip.kill !== LK) && G.now >= LK.t + 2.1) {
+    const t0 = LK.t - 4.6;
+    G.finalClip = { kill: LK, rec: G.rec.filter(f => f.t >= t0 && f.t <= LK.t + 2.6), events: G.events.filter(ev => ev.t >= t0 && ev.t <= LK.t + 2.6) };
+  }
 }
 function camSound(x, z) {
   const dx = x - camera.position.x, dz = z - camera.position.z, d = Math.hypot(dx, dz), yaw = camera.rotation.y;
@@ -61,7 +80,17 @@ function explodeFx(type, x, y, z) {
     play('hiss', .8, 40);
   }
 }
+// final kill cam: play from the saved copy of the last kill when there is one
 function startKillcam(kill, final) {
+  const clip = final && kill && G.finalClip && G.finalClip.kill === kill && G.finalClip.rec.length ? G.finalClip : null;
+  if (!clip) return playKillcam(kill, final);
+  const liveRec = G.rec, liveEv = G.events;
+  G.rec = clip.rec.slice(); G.events = clip.events.slice();
+  if (playKillcam(kill, final)) { G.kc.clip = { rec: liveRec, events: liveEv }; return true; }
+  G.rec = liveRec; G.events = liveEv;
+  return playKillcam(kill, final);
+}
+function playKillcam(kill, final) {
   if (!kill || !G.rec.length) return false;
   const killer = G.ents.find(e => e.id === kill.killer);
   const first = G.rec[0].t, lastT = G.rec[G.rec.length - 1].t;
@@ -73,11 +102,12 @@ function startKillcam(kill, final) {
   const saved = snapPoses();
   for (const p of G.proj) p.mesh.visible = false;
   const sleeve = killer === G.player ? mySleeve() : G.mode === 'ffa' ? 0xD9773F : TEAMS[killer.team].color;
+  buildHands(sleeve);   // throwing and knife hands in the killer's sleeve colour
   const R = makeVm(Object.assign({ has: k => (kill.w.atts || []).includes(k) }, kill.w), sleeve); kcVmRoot.add(R.group);
   vmRoot.visible = false; knife.visible = false; throwHand.visible = false; tkHand.visible = false; for (const c of brass) c.mesh.visible = false; if (magDrop) { magDrop.R.group.remove(magDrop.obj); magDrop = null; } laserBeam.visible = laserDot.visible = arcLine.visible = arcRing.visible = knifeMark.visible = false;
   let fi = 0; while (fi < G.rec.length - 1 && G.rec[fi + 1].t <= t0) fi++;
   let ei = G.events.findIndex(ev => ev.t >= t0); if (ei < 0) ei = G.events.length;
-  G.kc = { kill, final, kid: killer.id, t: t0, t0, t1, saved, vm: R, fi, ei, kick: 0, flashT: 0, aimY: 0, aimP: 0, bob: 0, cur: new Float32Array(REC), kp: new Float32Array(REC), mflash: new Map(), pool: {}, state: G.state };
+  G.kc = { kill, final, kid: killer.id, t: t0, t0, t1, saved, vm: R, fi, ei, kick: 0, flashT: 0, aimY: 0, aimP: 0, bob: 0, cur: new Float32Array(REC), kp: new Float32Array(REC), mflash: new Map(), pool: {}, state: G.state, throwT: 0, throwType: null, tDip: 0, botKiller: killer.isBot && !killer.human, seenThrow: new Set(), tkPrev: [] };
   G.state = final ? 'finalcam' : 'killcam';
   G.flashFx = 0; G.stunFx = 0; G.shake = 0;
   const you = killer === G.player;
@@ -134,7 +164,7 @@ function updateKillcam(dt) {
   const blendInto = (out, id) => {
     const o0 = F.ix.get(id); if (o0 === undefined) return false;
     const o1 = F2.ix.has(id) ? F2.ix.get(id) : o0, D2 = F2.ix.has(id) ? F2.d : F.d;
-    for (let r = 0; r < REC; r++) { const x0 = F.d[o0 + r], x1 = D2[o1 + r]; out[r] = (r === 3 || r === 21) ? x0 + wrap(x1 - x0) * u : r === 5 ? x0 : x0 + (x1 - x0) * u; }
+    for (let r = 0; r < REC; r++) { const x0 = F.d[o0 + r], x1 = D2[o1 + r]; out[r] = (r === 3 || r === 21) ? x0 + wrap(x1 - x0) * u : (r === 5 || r >= 30 || ((r === 28 || r === 29) && (x0 < 0 || x1 < 0 || x1 < x0 - .5))) ? x0 : x0 + (x1 - x0) * u; }
     return true;
   };
   for (const e of G.ents) { if (!e.model) continue; if (blendInto(K.cur, e.id)) readPose(e, K.cur, 0, e.id !== K.kid); else e.model.group.visible = false; }
@@ -145,9 +175,25 @@ function updateKillcam(dt) {
   const used = {};
   for (let k = 0; k < F.pr.length; k += 7) {
     const type = F.pr[k], list = K.pool[type] || (K.pool[type] = []), u = used[type] = (used[type] || 0) + 1;
-    if (list.length < u) list.push(nadeMesh(type));
+    if (list.length < u) {
+      const nm = nadeMesh(type);
+      if (type === 'tknife') {
+        // a throwing knife is a thin sliver flying away fast: show it bigger, with a glowing trail behind it
+        nm.scale.setScalar(2.2);
+        const tr = new THREE.Mesh(new THREE.BoxGeometry(.014, .014, .42), new THREE.MeshBasicMaterial({ color: 0xFFF0D0, transparent: true, opacity: .6, blending: THREE.AdditiveBlending, depthWrite: false }));
+        tr.position.z = .32; tr.visible = false; nm.add(tr); nm.userData.trail = tr;
+      }
+      list.push(nm);
+    }
     const mm = list[u - 1]; mm.visible = true; mm.position.set(F.pr[k + 1], F.pr[k + 2], F.pr[k + 3]); mm.rotation.set(F.pr[k + 4], F.pr[k + 5], F.pr[k + 6]);
+    if (type === 'tknife') {   // trail only while it's flying, not once it's stuck in a wall
+      // compared frame to frame of the recording (in slow motion several screen frames show the same recorded frame)
+      const pv = K.tkPrev[u - 1], x = mm.position.x, y = mm.position.y, z = mm.position.z;
+      if (!pv || pv.fi !== K.fi) { const vis = !!pv && Math.hypot(x - pv.x, y - pv.y, z - pv.z) > .004; K.tkPrev[u - 1] = { x, y, z, fi: K.fi, vis }; }
+      mm.userData.trail.visible = K.tkPrev[u - 1].vis;
+    }
   }
+  for (let j = used.tknife || 0; j < K.tkPrev.length; j++) K.tkPrev[j] = null;
   for (const type in K.pool) K.pool[type].forEach((mm, i) => { if (i >= (used[type] || 0)) mm.visible = false; });
   // killer's eyes
   K.aimY *= Math.exp(-dt * rate * 6); K.aimP *= Math.exp(-dt * rate * 6);
@@ -161,6 +207,34 @@ function updateKillcam(dt) {
     knife.visible = true; knife.position.set(.2 - e * .13 + (1 - s) * .02, -.26 + s * .15, -.2 - s * .25); knife.rotation.set(-.1 + s * .12, .32 - e * .26, -.65 + s * .45);
   } else knife.visible = false;
   K.knifeDip = mk > 0 ? Math.sin(mk * Math.PI) : 0;
+  // the killer's throws (grenades and throwing knives): wind up just before the throw, whip through after it
+  for (let j = K.ei; j < G.events.length && G.events[j].t <= K.t + .12; j++) {
+    const ev = G.events[j];
+    if (ev.k === 'throw' && ev.id === K.kid && !K.seenThrow.has(ev)) { K.seenThrow.add(ev); K.throwT = .32 * Math.min(1, .62 + Math.max(0, ev.t - K.t) / .32); K.throwType = ev.type; }
+  }
+  for (const k in heldItems) heldItems[k].visible = false;
+  throwHand.visible = false; tkHand.visible = false; K.tDip = 0;
+  const hk = d[o + 28], tk = d[o + 29], ht = EQ_TYPES[Math.round(d[o + 30])];
+  if (ht && hk >= 0) {
+    // the killer held it: wound up beside the head (a knife) or out in the off hand (a grenade), aiming
+    const kt = ht === 'tknife'; K.throwT = 0;
+    K.tDip = (kt ? .4 : .3) * hk; heldItem(ht).visible = true;
+    if (kt) { tkHand.visible = true; tkHand.position.set(.15 + hk * .02, -.22 + hk * .04, -.25 + hk * .04); tkHand.rotation.set(.3 + hk * 1.05, .1 + hk * .15, .1 + hk * .42); }
+    else { throwHand.visible = true; throwHand.position.set(-.05, -.18 + hk * .12, -.2 + hk * .06); throwHand.rotation.set(-1.0 * hk + .2, 0, .25); }
+  } else if (ht && tk >= 0) {
+    // the recorded throw itself
+    const kt = ht === 'tknife', s = Math.sin(tk * Math.PI); K.throwT = 0;
+    K.tDip = (kt ? .4 : .3) * (1 - tk * .5); if (d[o + 31] < .5) heldItem(ht).visible = true;
+    if (kt) { tkHand.visible = true; tkHand.position.set(.17 - tk * .1, -.18 - tk * .04 + s * .04, -.21 - tk * .22); tkHand.rotation.set(1.35 - tk * 1.9, .25 - tk * .25, .52 - tk * .4); }
+    else { throwHand.visible = true; throwHand.position.set(-.05 + tk * .12, -.06 + s * .05, -.14 - tk * .35); throwHand.rotation.set(-1.0 + tk * 1.6, 0, .25 - tk * .2); }
+  } else if (K.throwT > 0 && K.throwType && K.botKiller) {   // bots throw in one motion: no recorded hold
+    K.throwT = Math.max(0, K.throwT - dt * rate);
+    const k = clamp(1 - K.throwT / .32, 0, 1), s = Math.sin(k * Math.PI), kt = K.throwType === 'tknife';
+    K.tDip = (kt ? .4 : .3) * (1 - k * .5);
+    if (k < .38) heldItem(K.throwType).visible = true;   // released partway through the whip
+    if (kt) { tkHand.visible = true; tkHand.position.set(.17 - k * .1, -.18 - k * .04 + s * .04, -.21 - k * .22); tkHand.rotation.set(1.35 - k * 1.9, .25 - k * .25, .52 - k * .4); }
+    else { throwHand.visible = true; throwHand.position.set(-.05 + k * .12, -.06 + s * .05, -.14 - k * .35); throwHand.rotation.set(-1.0 + k * 1.6, 0, .25 - k * .2); }
+  }
   K.kick = Math.max(0, K.kick - dt * rate * 14);
   K.bob += spd * dt * rate * 1.9;
   if (K.flashT > 0) { K.flashT -= dt * rate; if (K.flashT <= 0) R.flash.visible = false; }
@@ -168,7 +242,7 @@ function updateKillcam(dt) {
   const bobY = Math.sin(K.bob * 2) * .035 * Math.min(1, spd / 5) * (1 - a * .85), sway = Math.sin(K.bob) * .012 * Math.min(1, spd / 5) * (1 - a);
   const renv = rl >= 0 ? Math.sin(clamp(rl / .92, 0, 1) * Math.PI) : 0;
   if (R.mag) R.mag.visible = !(rl >= .25 && rl < .5);
-  R.group.position.set(lerp(hip.x, ads.x, a) + sway - spr * .06 - renv * .04 + K.knifeDip * .1, lerp(hip.y, ads.y, a) + bobY * .5 - spr * .06 - renv * .07 - K.knifeDip * .2, lerp(hip.z, ads.z, a) + K.kick * .04);
+  R.group.position.set(lerp(hip.x, ads.x, a) + sway - spr * .06 - renv * .04 + K.knifeDip * .1, lerp(hip.y, ads.y, a) + bobY * .5 - spr * .06 - renv * .07 - K.knifeDip * .2 - K.tDip, lerp(hip.z, ads.z, a) + K.kick * .04);
   R.group.rotation.set(K.kick * .05 - spr * .25 + renv * .2, spr * .7, spr * .25 + renv * .5); aimSleeve(R);
   // look through the optic the same way the player does: the ACOG's inner glass hides once the gun is up
   for (const m of R.inner) m.visible = a < .55;
@@ -186,6 +260,7 @@ function updateKillcam(dt) {
 function clearKillcam() {
   const K = G.kc; if (!K) return null;
   G.kc = null;
+  if (K.clip) { G.rec = K.clip.rec; G.events = K.clip.events; }
   for (const e of G.ents) {
     if (!e.model) continue;
     if (NET.on) {
@@ -201,6 +276,7 @@ function clearKillcam() {
   for (const p of G.proj) p.mesh.visible = true;
   for (const k in K.pool) for (const m of K.pool[k]) scene.remove(m);
   kcVmRoot.remove(K.vm.group); vmRoot.visible = true; knife.visible = false;
+  for (const k in heldItems) heldItems[k].visible = false; throwHand.visible = false; tkHand.visible = false; buildHands(mySleeve());
   laserBeam.visible = laserDot.visible = false;
   $('#killcam').hidden = true; $('#hud').classList.remove('kc'); $('#scope').classList.remove('on');
   camera.fov = settings.fov; camera.updateProjectionMatrix(); vmCamera.fov = 60; vmCamera.updateProjectionMatrix();

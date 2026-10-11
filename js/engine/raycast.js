@@ -14,9 +14,26 @@ function rayAABB(o, d, min, max, tmax) {
   _rax = ax;
   return t0;
 }
+// ray against a vertical cylinder (b.round), capped by the box's y range
+function rayRound(o, d, b, tmax) {
+  const c = b.round, ox = o.x - c.x, oz = o.z - c.z, a = d.x * d.x + d.z * d.z;
+  let t0 = 0, t1 = tmax, ax = 'y', tn, tf, inv, t;
+  if (a < 1e-12) { if (ox * ox + oz * oz > c.r * c.r) return -1; }
+  else {
+    const bb = ox * d.x + oz * d.z, cc = ox * ox + oz * oz - c.r * c.r, disc = bb * bb - a * cc;
+    if (disc < 0) return -1;
+    const s = Math.sqrt(disc); tn = (-bb - s) / a; tf = (-bb + s) / a;
+    if (tn > t0) { t0 = tn; ax = Math.abs(ox + d.x * tn) > Math.abs(oz + d.z * tn) ? 'x' : 'z'; }
+    if (tf < t1) t1 = tf; if (t0 > t1) return -1;
+  }
+  if (Math.abs(d.y) < 1e-9) { if (o.y < b.min.y || o.y > b.max.y) return -1; }
+  else { inv = 1 / d.y; tn = (b.min.y - o.y) * inv; tf = (b.max.y - o.y) * inv; if (tn > tf) { t = tn; tn = tf; tf = t; } if (tn > t0) { t0 = tn; ax = 'y'; } if (tf < t1) t1 = tf; if (t0 > t1) return -1; }
+  _rax = ax;
+  return t0;
+}
 function rayWorld(o, d, maxT, all) {
   let best = maxT; hitAxis = 'y';
-  for (let i = 0; i < boxes.length; i++) { if (boxes[i].ghost || (boxes[i].invis && !all)) continue; const t = rayAABB(o, d, boxes[i].min, boxes[i].max, best); if (t >= 0 && t < best) { best = t; hitAxis = _rax; } }
+  for (let i = 0; i < boxes.length; i++) { if (boxes[i].ghost || (boxes[i].invis && !all)) continue; const t = boxes[i].round ? rayRound(o, d, boxes[i], best) : rayAABB(o, d, boxes[i].min, boxes[i].max, best); if (t >= 0 && t < best) { best = t; hitAxis = _rax; } }
   if (d.y < -1e-6) { const tg = -o.y / d.y; if (tg < best) { best = tg; hitAxis = 'y'; } }
   return best;
 }

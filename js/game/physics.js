@@ -3,10 +3,16 @@
 
 /* ---------- physics ---------- */
 const R = .38, STEP = .55, GRAV = 19;
-function blocking(b, e) { return b.max.y > e.pos.y + STEP && b.min.y < e.pos.y + e.height; }
+function blocking(b, e) { return b.max.y > e.pos.y + (b.noStand ? .05 : STEP) && b.min.y < e.pos.y + e.height; }
 function collide(e) {
   for (let pass = 0; pass < 2; pass++) for (const b of boxes) {
     if (!blocking(b, e)) continue;
+    if (b.round) { // cylinder: always push straight out from the middle, even if we ended up deep inside
+      const c = b.round, dx = e.pos.x - c.x, dz = e.pos.z - c.z, d = Math.hypot(dx, dz), m = c.r + R;
+      if (d >= m) continue;
+      if (d > 1e-6) { e.pos.x = c.x + dx / d * m; e.pos.z = c.z + dz / d * m; } else e.pos.x = c.x + m;
+      continue;
+    }
     const cx = clamp(e.pos.x, b.min.x, b.max.x), cz = clamp(e.pos.z, b.min.z, b.max.z);
     const dx = e.pos.x - cx, dz = e.pos.z - cz, d2 = dx * dx + dz * dz;
     if (d2 >= R * R) continue;
@@ -22,8 +28,9 @@ function collide(e) {
 function groundAt(e) {
   let g = 0;
   for (const b of boxes) {
-    if (b.max.y > e.pos.y + STEP || b.max.y <= g) continue;
+    if (b.noStand || b.max.y > e.pos.y + STEP || b.max.y <= g) continue;
     if (e.pos.x + R * .7 < b.min.x || e.pos.x - R * .7 > b.max.x || e.pos.z + R * .7 < b.min.z || e.pos.z - R * .7 > b.max.z) continue;
+    if (b.round && Math.hypot(e.pos.x - b.round.x, e.pos.z - b.round.z) > b.round.r + R * .7) continue;
     g = b.max.y;
   }
   return g;

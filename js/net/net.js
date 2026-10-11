@@ -343,7 +343,13 @@ function netPoseFlags(e, combat) {
 function netPose(e, f) {
   const mine = e === G.player, w = e.weapons && e.weapons[e.wi];
   const ads = mine ? G.adsT : (e.adsK || 0), rl = w && w.reloading && !w.shellMode && w.reloadDur ? 1 - w.reloadT / w.reloadDur : -1;
-  return [r2(e.pos.x), r2(e.pos.y), r2(e.pos.z), r2(e.yaw), r2(e.pitch), f, (e.sc || 0) % 1000, r1(e.vel.x), r1(e.vel.z), Math.round(Math.max(0, e.health)), r2(ads), r2(rl)];
+  const q = [r2(e.pos.x), r2(e.pos.y), r2(e.pos.z), r2(e.yaw), r2(e.pitch), f, (e.sc || 0) % 1000, r1(e.vel.x), r1(e.vel.z), Math.round(Math.max(0, e.health)), r2(ads), r2(rl)];
+  // your grenade or throwing knife in hand (aiming, then the throw), sent only while it's happening, for kill cams
+  if (mine) {
+    const H = G.hold, thr = !H && G.throwT > 0;
+    if (H || thr) q.push(H ? r2(clamp(H.t / .18, 0, 1)) : -1, thr ? r2(clamp(1 - G.throwT / .32, 0, 1)) : -1, EQ_TYPES.indexOf(H ? H.type : G.throwType), thr && G.thrown ? 1 : 0);
+  }
+  return q;
 }
 function netMyState() {
   const p = G.player, w = weapon(p) || p.weapons[0], Z = G.zm;
@@ -455,6 +461,9 @@ function netApplyPose(e, q) {
   const [x, y, z, yaw, pitch, f, sc, vx, vz, hp, ads, rl] = q;
   const T = e.nt || (e.nt = {});
   T.ads = typeof ads === 'number' ? ads : 0; T.rl = typeof rl === 'number' ? rl : -1;
+  const eq = q.length >= 16 ? q : null;   // a friend holding or throwing equipment
+  e.eqH = eq && typeof eq[12] === 'number' ? eq[12] : -1; e.eqT = eq && typeof eq[13] === 'number' ? eq[13] : -1;
+  e.eqY = eq && typeof eq[14] === 'number' ? eq[14] : -1; e.eqR = eq ? eq[15] : 0;
   Object.assign(T, { x, y, z, yaw, pitch, f, vx, vz, t: nowMs() });
   const alive = !!(f & 1);
   if (alive && !e.alive) netPuppetLive(e);

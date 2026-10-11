@@ -2,6 +2,17 @@
 'use strict';
 
 const DK = { y: 4.2, half: 3.5 };
+// a beam people can't walk through: thin collision slices along its length (movement only, bullets pass)
+function solidBeam(a, b, t, color) {
+  beam(a, b, t, color);
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), n = Math.max(1, Math.ceil(L / .3)), h = t / 2 + .03;
+  for (let k = 0; k < n; k++) {
+    const p = k / n, q = (k + 1) / n, P = i => [a[i] + (b[i] - a[i]) * p, a[i] + (b[i] - a[i]) * q];
+    const [x0, x1] = P(0), [y0, y1] = P(1), [z0, z1] = P(2);
+    const bb = addBox(Math.min(x0, x1) - h, Math.min(y0, y1) - h, Math.min(z0, z1) - h, Math.max(x0, x1) + h, Math.max(y0, y1) + h, Math.max(z0, z1) + h, 0, { noMesh: true });
+    bb.invis = true; bb.noMantle = true; bb.noStand = true;
+  }
+}
 function buildDerrick() {
   buildSky(0x4F6E96, 0xF2B07A, 0xC98E5E, { sun: [-340, 120, 210], sunR: 20, sunColor: 0xFFD49A, clouds: 9, cloudColor: 0xF6C9A0, cloudAlpha: .7 });
   groundPlane(0xC9A878, 'sand');
@@ -15,8 +26,8 @@ function buildDerrick() {
   addBox(-H, Y - .25, -H, H, Y, H, 0x8C8A86, { tex: 'diamond' });
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) addBox(sx * (H - .15) - .2, 0, sz * (H - .15) - .2, sx * (H - .15) + .2, Y - .25, sz * (H - .15) + .2, steel);
   for (const s of [-1, 1]) {
-    beam([s * (H - .15), .3, -(H - .15)], [s * (H - .15), Y - .4, H - .15], .12, steel); beam([s * (H - .15), .3, H - .15], [s * (H - .15), Y - .4, -(H - .15)], .12, steel);
-    beam([-(H - .15), .3, s * (H - .15)], [H - .15, Y - .4, s * (H - .15)], .12, steel);
+    solidBeam([s * (H - .15), .3, -(H - .15)], [s * (H - .15), Y - .4, H - .15], .12, steel); solidBeam([s * (H - .15), .3, H - .15], [s * (H - .15), Y - .4, -(H - .15)], .12, steel);
+    solidBeam([-(H - .15), .3, s * (H - .15)], [H - .15, Y - .4, s * (H - .15)], .12, steel);
   }
   railing('x', -H, -H, H, Y, 0xD9B23A); railing('x', H, -H, H, Y, 0xD9B23A);
   railing('z', -H, -H, H, Y, 0xD9B23A);
@@ -29,25 +40,30 @@ function buildDerrick() {
   }
   for (let k = 0; k < 6; k++) {
     const y0 = Y + 2.2 + k * 2.2, y1 = y0 + 2.2, w0 = .85 - (y0 - Y) / (18 - Y) * .55, w1 = .85 - (y1 - Y) / (18 - Y) * .55;
-    for (let i = 0; i < 4; i++) { const a = legs[i], b = legs[(i + 1) % 4]; beam([a[0] * w0, y0, a[1] * w0], [b[0] * w1, y1, b[1] * w1], .07, steel); beam([a[0] * w1, y1, a[1] * w1], [b[0] * w1, y1, b[1] * w1], .07, steel); }
+    for (let i = 0; i < 4; i++) { const a = legs[i], b = legs[(i + 1) % 4], bm = k ? beam : solidBeam; bm([a[0] * w0, y0, a[1] * w0], [b[0] * w1, y1, b[1] * w1], .07, steel); bm([a[0] * w1, y1, a[1] * w1], [b[0] * w1, y1, b[1] * w1], .07, steel); }
   }
   deco(-.6, 18, -.6, .6, 18.8, .6, grey);
   for (const dz of [-.12, .12]) beam([0, 18, dz], [0, Y + 2.2, dz], .025, 0x222222);
-  deco(-.35, Y + 2, -.35, .35, Y + 2.6, .35, 0xD9B23A);
-  cyl(.16, 2, 0, Y + 1, 0, 0x4A4A48, 10);
+  addBox(-.35, Y + 2, -.35, .35, Y + 2.6, .35, 0xD9B23A);
+  cyl(.16, 2, 0, Y + 1, 0, 0x4A4A48, 10); addBox(-.17, Y, -.17, .17, Y + 2, .17, 0, { noMesh: true });
   // drawworks and doghouse on the floor as cover
   addBox(-2.9, Y, 1.7, -1.8, Y + 1.1, 2.9, 0x8A3A24, { tex: 'metal' });
   addBox(1.8, Y, -2.9, 2.9, Y + 1.0, -2.0, grey, { tex: 'metal' });
   // stairs up the east side
   stairs('x', 9.1, H, -.65, .65, Y, 0x77736C, 'diamond');
-  for (const z of [-.72, .72]) { beam([9.1, 1.05, z], [H, Y + 1.05, z], .06, 0xD9B23A); beam([9.1, 0, z], [9.1, 1.05, z], .06, 0xD9B23A); }
+  for (const z of [-.72, .72]) {
+    beam([9.1, 1.05, z], [H, Y + 1.05, z], .06, 0xD9B23A); beam([9.1, 0, z], [9.1, 1.05, z], .06, 0xD9B23A);
+    // handrail collision: a stepped wall following the stair line so nobody walks off the side
+    const n = 14;
+    for (let k = 0; k < n; k++) { const xa = 9.1 + (H - 9.1) * k / n, xb = 9.1 + (H - 9.1) * (k + 1) / n, bb = addBox(Math.min(xa, xb), 0, z - .05, Math.max(xa, xb), Y * (k + 1) / n + 1.1, z + .05, 0, { noMesh: true }); bb.invis = true; bb.noMantle = true; }
+  }
   // pipe rack beside the tower, mud pumps
   addBox(-8.5, 0, -2.2, -5.5, 1.5, 1.4, 0x3E6E8E, { tex: 'metal' }); deco(-8.4, 1.5, -2.1, -5.6, 1.7, 1.3, 0x2A2C2E);
   cyl(.5, 3, -7, .95, 2.4, 0x3E6E8E, 12, { rotX: Math.PI / 2 }); addBox(-7.5, 0, .9, -6.5, 1.45, 3.9, 0, { noMesh: true });
 
   // ---------- tanks, pipes, pumpjacks ----------
   tank(-15, -13, 3, 6, 0xD8D2C4); tank(-15.5, -4.5, 2.2, 5, 0xB8B4AA); tank(16, 13, 3, 6, 0xD8D2C4);
-  deco(-12.2, 5.6, -13.2, -9, 5.75, -12.8, 0xD9B23A); beam([-12.1, 0, -13], [-12.1, 6, -13], .08, 0xD9B23A);
+  deco(-12.2, 5.6, -13.2, -9, 5.75, -12.8, 0xD9B23A); beam([-12.1, 0, -13], [-12.1, 6, -13], .08, 0xD9B23A); addBox(-12.16, 0, -13.06, -12.04, 6, -12.94, 0, { noMesh: true });
   const pipe = (a, b, y = .55, r = .3) => {
     const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz);
     const m = cyl(r, L, (a[0] + b[0]) / 2, y, (a[1] + b[1]) / 2, 0x7C7A74, 10, { tex: 'metal' });
@@ -55,7 +71,9 @@ function buildDerrick() {
     addBox(Math.min(a[0], b[0]) - (dx ? 0 : r), 0, Math.min(a[1], b[1]) - (dz ? 0 : r), Math.max(a[0], b[0]) + (dx ? 0 : r), y + r, Math.max(a[1], b[1]) + (dz ? 0 : r), 0, { noMesh: true });
     for (let t = .1; t < 1; t += 1 / Math.max(1, Math.round(L / 3))) deco(a[0] + dx * t - .15, 0, a[1] + dz * t - .15, a[0] + dx * t + .15, y - r + .02, a[1] + dz * t + .15, 0x4A4844);
   };
-  pipe([-7, 9], [-7, 17.5]); pipe([6, -9], [17, -9]); pipe([-15, -9.6], [-15, -6.9], .5, .22);
+  pipe([-7, 9], [-7, 17.5]); pipe([6, -9], [17, -9]); pipe([-15, -10.25], [-15, -6.45], .5, .22);
+  // flange collars where the pipe enters each silo wall
+  for (const zc of [-9.98, -6.68]) cyl(.32, .14, -15, .5, zc, 0x5E5C57, 12, { rotX: Math.PI / 2 });
   // pumpjacks (animated in tick)
   MAPS.derrick.jacks = [];
   for (const [x, z, yaw] of [[-16, 15, 0], [16.5, -3, Math.PI / 2]]) {
@@ -71,8 +89,19 @@ function buildDerrick() {
     const rod = P(.05, 2.6, .05, 2.55, -1.6, 0, 0x222222, beamG);
     P(.6, .5, .6, 2.55, .25, 0, 0x55524C);
     MAPS.derrick.jacks.push({ beam: beamG, ph: Math.random() * TAU });
-    const c = Math.cos(yaw), s = Math.sin(yaw), hx = Math.abs(c) * 2.4 + Math.abs(s) * .7, hz = Math.abs(s) * 2.4 + Math.abs(c) * .7;
-    addBox(x - hx, 0, z - hz, x + hx, 1.5, z + hz, 0, { noMesh: true });
+    // collision follows the parts (local x = along the beam), with room for the beam's swing
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const LB = (x0, y0, z0, x1, y1, z1, stand) => {
+      const xs = [], zs = [];
+      for (const lx of [x0, x1]) for (const lz of [z0, z1]) { xs.push(x + lx * c + lz * s); zs.push(z - lx * s + lz * c); }
+      const bb = addBox(Math.min(...xs), y0, Math.min(...zs), Math.max(...xs), y1, Math.max(...zs), 0, { noMesh: true });
+      if (!stand) bb.noMantle = true;
+    };
+    LB(-2.3, 0, -.6, 2.3, .3, .6, true);     // skid
+    LB(-.08, 0, -.56, .48, 3.3, .56);         // samson posts
+    LB(-2.6, 0, -.5, -1.1, 4.1, .5);          // crank and swinging counterweight
+    LB(1.95, 0, -.34, 2.9, 3.95, .34);        // horse head, rod and wellhead
+    LB(-2.6, 2.3, -.3, 2.6, 3.9, .3);         // walking beam
   }
 
   // ---------- office shack ----------
@@ -96,8 +125,8 @@ function buildDerrick() {
     addBox(x - 2.6, .45, z - 1.05, x + 1.1, 1.25, z + 1.05, 0x6E3E2A);
     addBox(x + 1.1, .45, z - 1.05, x + 2.9, 2.3, z + 1.05, 0x8A4A30);
     deco(x + 2.9, 1.4, z - .9, x + 2.95, 2.1, z + .9, 0x1E2A30);
-    deco(x - 2.6, 1.25, z - 1.05, x - 2.4, 1.9, z + 1.05, 0x6E3E2A);
-    for (const dz of [-1.05, 1.05]) deco(x - 2.6, 1.25, z + dz - .05, x + 1.1, 1.9, z + dz + .05, 0x6E3E2A);
+    addBox(x - 2.6, 1.25, z - 1.05, x - 2.4, 1.9, z + 1.05, 0x6E3E2A);
+    for (const dz of [-1.05, 1.05]) addBox(x - 2.6, 1.25, z + dz - .05, x + 1.1, 1.9, z + dz + .05, 0x6E3E2A);
     addBox(x - 2.6, 0, z - 1.05, x + 2.9, .45, z + 1.05, 0, { noMesh: true });
     for (const [dx, dz] of [[-1.8, -1.05], [-1.8, 1.05], [1.9, -1.05]]) wheel(x + dx, z + dz + Math.sign(dz) * .14, .42, 'z');
     deco(x + 1.5, 0, z + 1, x + 2.3, .35, z + 1.6, 0x1E2124);

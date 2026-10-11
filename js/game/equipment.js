@@ -58,6 +58,7 @@ function throwItem(e, type) {
   const v = d.clone().multiplyScalar(knifeT ? KNIFE_V : 17); v.x += e.vel.x * .4; v.z += e.vel.z * .4;
   const p = { type, owner: e, pos: o, vel: v, fuse: FUSE[type], mesh: nadeMesh(type), stuck: false, attach: null, resting: false };
   p.mesh.position.copy(o); G.proj.push(p); netProj(p);
+  if (!G.zm) G.events.push({ t: G.now, k: 'throw', id: e.id, type });   // kill cams replay the throw
   if (e === G.player) foley('throw', .7); else { const { d: dd, pan } = relPan(e); if (dd < 25) foley('throw', .4 * (1 - dd / 25), pan); }
   return p;
 }
